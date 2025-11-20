@@ -1,64 +1,61 @@
-// MainApp.js
-import React, { useState } from 'react';
+// src/MainApp.js
+import React, { useState, useEffect } from 'react';
+import Login from './login';
 import App from './App';
 import Coordinator from './Coordinator';
+import Student from './Student'; // You'll need to create this
 
-function MainApp() {
-  const [currentView, setCurrentView] = useState('company');
+const MainApp = () => {
+    const [user, setUser] = useState(null);
+    const [role, setRole] = useState(null);
+    const [userType, setUserType] = useState(null);
 
-  return (
-    <div>
-      {/* Navigation Bar */}
-      <div style={{
-        padding: '10px 20px', 
-        backgroundColor: '#450000', 
-        color: 'white',
-        display: 'flex',
-        gap: '20px',
-        justifyContent: 'center',
-        position: 'sticky',
-        top: 0,
-        zIndex: 1000,
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-      }}>
-        <button 
-          onClick={() => setCurrentView('company')}
-          style={{
-            padding: '10px 20px',
-            backgroundColor: currentView === 'company' ? '#2A0001' : '#450000',
-            color: 'white',
-            border: '1px solid white',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontWeight: '600',
-            fontSize: '14px',
-            transition: 'all 0.3s ease'
-          }}
-        >
-          🏢 Company View
-        </button>
-        <button 
-          onClick={() => setCurrentView('coordinator')}
-          style={{
-            padding: '10px 20px',
-            backgroundColor: currentView === 'coordinator' ? '#2A0001' : '#450000',
-            color: 'white',
-            border: '1px solid white',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontWeight: '600',
-            fontSize: '14px',
-            transition: 'all 0.3s ease'
-          }}
-        >
-          👨‍💼 Coordinator View
-        </button>
-      </div>
+    useEffect(() => {
+        // Check if user is already logged in
+        const savedUser = localStorage.getItem('user');
+        const savedRole = localStorage.getItem('role');
+        const savedUserType = localStorage.getItem('userType');
+        
+        if (savedUser && savedRole && savedUserType) {
+            setUser(JSON.parse(savedUser));
+            setRole(savedRole);
+            setUserType(savedUserType);
+        }
+    }, []);
 
-      {/* Render the selected component */}
-      {currentView === 'company' ? <App /> : <Coordinator />}
-    </div>
-  );
-}
+    const handleLogin = (userRole, userData, userType) => {
+        setRole(userRole);
+        setUser(userData);
+        setUserType(userType);
+    };
+
+    const handleLogout = () => {
+        localStorage.removeItem('user');
+        localStorage.removeItem('role');
+        localStorage.removeItem('userType');
+        setUser(null);
+        setRole(null);
+        setUserType(null);
+    };
+
+    const renderDashboard = () => {
+        switch(role) {
+            case '25-101': // Coordinator
+                return <Coordinator user={user} onLogout={handleLogout} />;
+            case '25-102': // Company
+                return <App user={user} onLogout={handleLogout} />;
+            case '25-103': // Student
+                return <Student user={user} onLogout={handleLogout} />;
+            default:
+                return <Login onLogin={handleLogin} />;
+        }
+    };
+
+    return (
+        <div className="main-app">
+            {renderDashboard()}
+        </div>
+    );
+};
 
 export default MainApp;
