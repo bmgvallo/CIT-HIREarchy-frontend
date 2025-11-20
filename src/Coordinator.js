@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react'; 
 import './Coordinator.css';
 
 function Coordinator() {
@@ -20,6 +20,26 @@ function Coordinator() {
   const [selectedJob, setSelectedJob] = useState(null);
   const [showJobModal, setShowJobModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
+
+  const fetchCoordinatorData = useCallback(async () => {
+    try {
+      const savedUser = localStorage.getItem('user');
+      if (savedUser) {
+        const userData = JSON.parse(savedUser);
+        console.log('Coordinator data from localStorage:', userData);
+        
+        // Use the data that was saved during login
+        setUser({
+          username: userData.username || 'coordinator_user',
+          first_name: userData.coordinatorName || userData.first_name || 'Coordinator',
+          last_name: userData.coordinatorDepartment ? `(${userData.coordinatorDepartment})` : 'User',
+          id: userData.id
+        });
+      }
+    } catch (error) {
+      console.error('Error setting coordinator data:', error);
+    }
+  }, []);
 
   // Mock data for testing
   const mockJobs = [
@@ -114,9 +134,10 @@ function Coordinator() {
 
   // Fetch initial data
   useEffect(() => {
+    fetchCoordinatorData();
     fetchJobs();
     fetchNotifications();
-  }, []);
+  }, [fetchCoordinatorData]);
 
   // Filter jobs when search term or status filter changes
   useEffect(() => {
@@ -132,15 +153,42 @@ function Coordinator() {
 
   const fetchJobs = async () => {
     try {
-      // Use mock data for testing
-      setJobs(mockJobs);
+      const response = await fetch('http://localhost:8080/api/coordinator/jobs');
       
-      // For real API later:
-      // const response = await fetch('/api/coordinator/jobs');
-      // const data = await response.json();
-      // setJobs(data);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Jobs from API:', data);
+        
+        // Transform the data here, inside the if block
+        const transformedJobs = data.map(job => ({
+          id: job.listingID || job.id,
+          title: job.title,
+          company: job.company?.companyName || 'Company',
+          location: job.location,
+          salary: job.salary,
+          modality: job.modality,
+          duration: job.duration,
+          postDate: job.postDate,
+          deadline: job.deadline,
+          description: job.description,
+          requirements: job.requirements,
+          status: job.status || 'pending',
+          cea: false,
+          ccs: false,
+          case: false,
+          cmba: false,
+          cnahs: false,
+          ccj: false
+        }));
+
+        setJobs(transformedJobs);
+      } else {
+        console.error('Failed to fetch jobs, using mock data');
+        setJobs(mockJobs);
+      }
     } catch (error) {
       console.error('Error fetching jobs:', error);
+      setJobs(mockJobs);
     }
   };
 
@@ -172,16 +220,18 @@ function Coordinator() {
   // Job actions
   const approveJob = async (jobId) => {
     try {
-      // Mock API call
-      setJobs(prev => prev.map(job => 
-        job.id === jobId ? { ...job, status: 'approved' } : job
-      ));
-      showNotification('Job listing approved successfully', 'success');
+      const response = await fetch(`http://localhost:8080/api/coordinator/jobs/${jobId}/approve`, {
+        method: 'POST'
+      });
       
-      // For real API later:
-      // const response = await fetch(`/api/coordinator/jobs/${jobId}/approve`, {
-      //   method: 'POST'
-      // });
+      if (response.ok) {
+        setJobs(prev => prev.map(job => 
+          job.id === jobId ? { ...job, status: 'approved' } : job
+        ));
+        showNotification('Job listing approved successfully', 'success');
+      } else {
+        showNotification('Error approving job listing', 'error');
+      }
     } catch (error) {
       console.error('Error approving job:', error);
       showNotification('Error approving job listing', 'error');
@@ -190,22 +240,24 @@ function Coordinator() {
 
   const rejectJob = async (jobId, reason) => {
     try {
-      // Mock API call
-      setJobs(prev => prev.map(job => 
-        job.id === jobId ? { ...job, status: 'rejected', rejection_reason: reason } : job
-      ));
-      setRejectionReason('');
-      setShowJobModal(false);
-      showNotification('Job listing rejected successfully', 'success');
+      const response = await fetch(`http://localhost:8080/api/coordinator/jobs/${jobId}/reject`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reason })
+      });
       
-      // For real API later:
-      // const response = await fetch(`/api/coordinator/jobs/${jobId}/reject`, {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({ reason })
-      // });
+      if (response.ok) {
+        setJobs(prev => prev.map(job => 
+          job.id === jobId ? { ...job, status: 'rejected', rejection_reason: reason } : job
+        ));
+        setRejectionReason('');
+        setShowJobModal(false);
+        showNotification('Job listing rejected successfully', 'success');
+      } else {
+        showNotification('Error rejecting job listing', 'error');
+      }
     } catch (error) {
       console.error('Error rejecting job:', error);
       showNotification('Error rejecting job listing', 'error');
@@ -297,6 +349,23 @@ function Coordinator() {
     return departments.join(', ');
   };
 
+  const handleLogout = () => {
+    // Clear all storage
+    localStorage.removeItem('user');
+    localStorage.removeItem('role');
+    localStorage.removeItem('userType');
+    localStorage.removeItem('token');
+    sessionStorage.clear();
+    
+    // Show logout notification
+    showNotification('Logged out successfully', 'success');
+    
+    // Redirect to login page
+    setTimeout(() => {
+      window.location.href = '/login';
+    }, 1000);
+  };
+
   return (
     <div className="Coordinator">
       {/* Header */}
@@ -374,7 +443,7 @@ function Coordinator() {
                   </div>
                   <div className="user-dropdown-divider"></div>
                   <div className="user-dropdown-item">
-                    <button onClick={() => {/* Logout logic */}} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
+                    <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
                       <i className="fas fa-sign-out-alt"></i> Logout
                     </button>
                   </div>

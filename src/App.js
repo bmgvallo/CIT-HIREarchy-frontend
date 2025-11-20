@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 
 function App() {
-  // State management
+  // State management - UPDATED
   const [user, setUser] = useState({
-    username: 'company_admin',
-    first_name: 'Company',
-    last_name: 'Admin'
+    username: '',
+    company_name: '',
+    contact_person: '',
+    email: '',
+    id: null
   });
   
   const [notifications, setNotifications] = useState([]);
@@ -65,32 +67,95 @@ function App() {
   const pendingJobs = jobs.filter(j => j.status === 'pending').length;
   const rejectedJobs = jobs.filter(j => j.status === 'rejected').length;
 
-  // Fetch initial data
-  useEffect(() => {
-    fetchJobs();
-    fetchNotifications();
-  }, []);
+  // Filter jobs based on active filter
+  const filteredJobs = jobs.filter(job => {
+    if (activeFilter === 'all') return true;
+    if (activeFilter === 'approved') return job.status === 'approved';
+    if (activeFilter === 'pending') return job.status === 'pending';
+    if (activeFilter === 'rejected') return job.status === 'rejected';
+    return true;
+  });
 
-  const fetchJobs = async () => {
+  // ADDED: Function to fetch company data with useCallback
+  const fetchCompanyData = useCallback(async () => {
     try {
-      const response = await fetch('/api/jobs');
-      const data = await response.json();
-      setJobs(data);
+      // Get user data from localStorage (set during login)
+      const savedUser = localStorage.getItem('user');
+      if (savedUser) {
+        const userData = JSON.parse(savedUser);
+        console.log('Using user data from localStorage:', userData);
+        
+        // If we have a company ID, fetch the full company details
+        setUser({
+        username: userData.username || 'Username',
+        company_name: userData.companyName || userData.company_name || 'Company Name',
+        contact_person: userData.contactPerson || userData.contact_person || 'Contact Person',
+        email: userData.email || 'Email',
+        id: userData.id
+      });
+    }
+  } catch (error) {
+    console.error('Error setting user data:', error);
+  }
+}, []);
+
+  // UPDATED: fetchJobs with useCallback
+  const fetchJobs = useCallback(async () => {
+    try {
+      // Use the actual company ID from user state
+      const companyId = user?.id || 1;
+      
+      const response = await fetch(`http://localhost:8080/api/listings/company/${companyId}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setJobs(data);
+      } else {
+        console.error('Failed to fetch jobs');
+        // Keep using mock data for now if API fails
+        setJobs([]);
+      }
     } catch (error) {
       console.error('Error fetching jobs:', error);
+      setJobs([]);
     }
-  };
+  }, [user?.id]);
 
-  const fetchNotifications = async () => {
+  // UPDATED: fetchNotifications with useCallback
+  const fetchNotifications = useCallback(async () => {
     try {
-      const response = await fetch('/api/notifications');
-      const data = await response.json();
-      setNotifications(data.notifications);
-      setUnreadCount(data.unread_count);
+      // For now, use mock notifications since you don't have a notifications API
+      const mockNotifications = [
+        {
+          id: 1,
+          message: 'New application received for Software Engineer position',
+          notification_type: 'application',
+          is_read: false,
+          created_at: '2 hours ago'
+        },
+        {
+          id: 2,
+          message: 'Job listing "Marketing Manager" has been approved',
+          notification_type: 'approval',
+          is_read: true,
+          created_at: '1 day ago'
+        }
+      ];
+      setNotifications(mockNotifications);
+      setUnreadCount(1); // One unread notification
     } catch (error) {
       console.error('Error fetching notifications:', error);
+      setNotifications([]);
+      setUnreadCount(0);
     }
-  };
+  }, []);
+
+  // Fetch initial data - FIXED with dependencies
+  useEffect(() => {
+    fetchCompanyData();
+    fetchJobs();
+    fetchNotifications();
+  }, [fetchCompanyData, fetchJobs, fetchNotifications]);
 
   // Modal handlers
   const openModal = () => setShowModal(true);
@@ -135,27 +200,102 @@ function App() {
     }));
   };
 
+  // Replace the handleSubmit function
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     try {
-      const response = await fetch('/api/jobs', {
+      // Transform form data to match your InternshipListing entity
+      const jobData = {
+        title: formData.title,
+        description: formData.description,
+        location: formData.location,
+        modality: formData.modality,
+        requirements: formData.requirements,
+        postDate: formData.postDate || new Date().toISOString().split('T')[0],
+        duration: formData.duration,
+        deadline: formData.deadline,
+        salary: parseFloat(formData.salary),
+        status: "pending" // Default status
+        // Note: You'll need to set company ID - this depends on your entity relationships
+      };
+
+      const response = await fetch('/api/listings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(jobData)
       });
       
       if (response.ok) {
         closeModal();
         fetchJobs(); // Refresh the list
         showNotification('Job listing created successfully!', 'success');
+      } else {
+        showNotification('Error creating job listing', 'error');
       }
     } catch (error) {
       console.error('Error creating job:', error);
       showNotification('Error creating job listing', 'error');
     }
+  };
+
+  // Replace the deleteJob function
+  const deleteJob = async (jobId) => {
+    if (window.confirm('Are you sure you want to delete this job listing?')) {
+      try {
+        const response = await fetch(`/api/listings/${jobId}`, {
+          method: 'DELETE'
+        });
+        
+        if (response.ok) {
+          setJobs(prev => prev.filter(j => j.listingID !== jobId));
+          showNotification('Job listing deleted successfully', 'success');
+        } else {
+          showNotification('Error deleting job listing', 'error');
+        }
+      } catch (error) {
+        console.error('Error deleting job:', error);
+        showNotification('Error deleting job listing', 'error');
+      }
+    }
+  };
+
+  // Replace the editJob function to handle real data structure
+  const editJob = (job) => {
+    // Transform backend job data to form data
+    setFormData({
+      title: job.title,
+      description: job.description,
+      location: job.location,
+      modality: job.modality,
+      requirements: job.requirements,
+      postDate: job.postDate,
+      duration: job.duration,
+      deadline: job.deadline,
+      salary: job.salary,
+      // Reset all program checkboxes
+      civil_engineering: false,
+      chemical_engineering: false,
+      computer_engineering: false,
+      electrical_engineering: false,
+      mechanical_engineering: false,
+      architecture: false,
+      computer_science: false,
+      information_technology: false,
+      communication: false,
+      biology: false,
+      psychology: false,
+      education: false,
+      accountancy: false,
+      business_admin: false,
+      hospitality_management: false,
+      nursing: false,
+      criminology: false
+      // Note: You'll need to map programs from course data if you implement that
+    });
+    setShowModal(true);
   };
 
   // Notification handlers
@@ -189,38 +329,25 @@ function App() {
     }
   };
 
-  // Job actions
-  const deleteJob = async (jobId) => {
-    if (window.confirm('Are you sure you want to delete this job listing?')) {
-      try {
-        await fetch(`/api/jobs/${jobId}`, {
-          method: 'DELETE'
-        });
-        setJobs(prev => prev.filter(j => j.id !== jobId));
-        showNotification('Job listing deleted successfully', 'success');
-      } catch (error) {
-        console.error('Error deleting job:', error);
-        showNotification('Error deleting job listing', 'error');
-      }
-    }
+  // ADD LOGOUT FUNCTION
+  const handleLogout = () => {
+    // Clear local storage
+    localStorage.removeItem('user');
+    localStorage.removeItem('role');
+    localStorage.removeItem('userType');
+    localStorage.removeItem('token');
+    
+    // Clear session storage
+    sessionStorage.clear();
+    
+    // Show logout notification
+    showNotification('Logged out successfully', 'success');
+    
+    // Redirect to login page after a short delay
+    setTimeout(() => {
+      window.location.href = '/login';
+    }, 1000);
   };
-
-  const editJob = (job) => {
-    setFormData({
-      ...formData,
-      ...job
-    });
-    setShowModal(true);
-  };
-
-  // Filter jobs
-  const filteredJobs = jobs.filter(job => {
-    if (activeFilter === 'all') return true;
-    if (activeFilter === 'approved') return job.status === 'approved';
-    if (activeFilter === 'pending') return job.status === 'pending';
-    if (activeFilter === 'rejected') return job.status === 'rejected';
-    return true;
-  });
 
   // Utility functions
   const showNotification = (message, type) => {
@@ -228,13 +355,23 @@ function App() {
     console.log(`${type}: ${message}`);
   };
 
+  // UPDATED: getInitials to use contact person name
   const getInitials = () => {
-    if (user.first_name && user.last_name) {
-      return `${user.first_name[0]}${user.last_name[0]}`.toUpperCase();
+    if (user.contact_person && user.contact_person.trim()) {
+      const names = user.contact_person.split(' ');
+      if (names.length >= 2) {
+        return `${names[0][0]}${names[1][0]}`.toUpperCase();
+      }
+      return user.contact_person[0].toUpperCase();
     }
-    return user.username[0].toUpperCase();
+    if (user.company_name && user.company_name.trim()) {
+      return user.company_name[0].toUpperCase();
+    }
+    if (user.username && user.username.trim()) {
+      return user.username[0].toUpperCase();
+    }
+    return 'C'; // Default fallback
   };
-
   const toggleDepartmentGroup = (group) => {
     setActiveDepartmentGroups(prev => ({
       ...prev,
@@ -318,23 +455,37 @@ function App() {
               </div>
             )}
 
-            {/* User Dropdown */}
+            {/* User Dropdown - UPDATED */}
             <div className="user-info" onClick={() => setShowUserDropdown(!showUserDropdown)}>
-              <div>{user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : user.username}</div>
+              <div>
+                {user.contact_person || user.company_name || user.username || 'User'}
+                {user.company_name && user.company_name !== (user.contact_person || user.username) && (
+                  <div style={{ fontSize: '12px', color: '#ccc' }}>
+                    {user.company_name}
+                  </div>
+                )}
+              </div>
               <div className="user-avatar">
                 {getInitials()}
               </div>
               {showUserDropdown && (
                 <div className="user-dropdown active">
                   <div className="user-dropdown-item">
-                    <i className="fas fa-user-circle"></i> Company Profile
+                    <i className="fas fa-building"></i> {user.company_name || 'Company'}
                   </div>
+                  <div className="user-dropdown-item">
+                    <i className="fas fa-user"></i> {user.contact_person || 'Contact Person'}
+                  </div>
+                  <div className="user-dropdown-item">
+                    <i className="fas fa-envelope"></i> {user.email || 'Email'}
+                  </div>
+                  <div className="user-dropdown-divider"></div>
                   <div className="user-dropdown-item">
                     <i className="fas fa-cog"></i> Settings
                   </div>
                   <div className="user-dropdown-divider"></div>
                   <div className="user-dropdown-item">
-                    <button onClick={() => {/* Logout logic */}} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
+                    <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
                       <i className="fas fa-sign-out-alt"></i> Logout
                     </button>
                   </div>
@@ -415,7 +566,7 @@ function App() {
           <div className="properties-container">
             {filteredJobs.length > 0 ? (
               filteredJobs.map(job => (
-                <div key={job.id} className="property-card" data-status={job.status}>
+                <div key={job.listingID || job.id} className="property-card" data-status={job.status}>
                   <div className="property-content">
                     <div className="job-header">
                       <h3 className="property-title">{job.title}</h3>
@@ -440,7 +591,7 @@ function App() {
                       <button className="btn-edit" onClick={() => editJob(job)}>
                         <i className="fas fa-edit"></i> Edit
                       </button>
-                      <button className="btn-delete" onClick={() => deleteJob(job.id)}>
+                      <button className="btn-delete" onClick={() => deleteJob(job.listingID || job.id)}>
                         <i className="fas fa-trash"></i> Delete
                       </button>
                     </div>
@@ -466,20 +617,20 @@ function App() {
             <div className="footer-section">
               <h3>Quick Links</h3>
               <ul className="footer-links">
-                <li><a href="#">About Us</a></li>
-                <li><a href="#">How It Works</a></li>
-                <li><a href="#">Pricing</a></li>
-                <li><a href="#">FAQs</a></li>
+                <li><a href="/about">About Us</a></li>
+                <li><a href="/how-it-works">How It Works</a></li>
+                <li><a href="/pricing">Pricing</a></li>
+                <li><a href="/faq">FAQs</a></li>
               </ul>
             </div>
             
             <div className="footer-section">
               <h3>Legal</h3>
               <ul className="footer-links">
-                <li><a href="#">Terms of Service</a></li>
-                <li><a href="#">Privacy Policy</a></li>
-                <li><a href="#">Cookie Policy</a></li>
-                <li><a href="#">Recruitment Guidelines</a></li>
+                <li><a href="/terms">Terms of Service</a></li>
+                <li><a href="/privacy">Privacy Policy</a></li>
+                <li><a href="/cookies">Cookie Policy</a></li>
+                <li><a href="/guidelines">Recruitment Guidelines</a></li>
               </ul>
             </div>
             
