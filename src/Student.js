@@ -1,3 +1,4 @@
+// Student.js
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import './App.css';
@@ -261,10 +262,9 @@ function StudentDashboard() {
                     notifications.map(notification => (
                       <div key={notification.id} className={`notification-item ${!notification.is_read ? 'unread' : ''}`}>
                         <div className="notification-type-icon">
-                          {notification.notification_type === 'application' ? '📄'
-                            : notification.notification_type === 'approval' ? '✅'
-                              : notification.notification_type === 'rejection' ? '❌'
-                                : '🔔'}
+                          {notification.type === 'application' ? '📄'
+                            : notification.type === 'recommendation' ? '✅'
+                              : '🔔'}
                         </div>
                         <div className="notification-content">
                           <div className="notification-message">{notification.message}</div>
@@ -302,7 +302,7 @@ function StudentDashboard() {
               </div>
               {showUserDropdown && (
                 <div className="user-dropdown active">
-                  <div className="user-dropdown-item" onClick={() => navigate('/profile')}>
+                  <div className="user-dropdown-item" onClick={() => navigate('/student/profile')}>
                     <i className="fas fa-user-circle"></i> My Profile
                   </div>
                   <div className="user-dropdown-item">
@@ -332,12 +332,6 @@ function StudentDashboard() {
               <h1 className="dashboard-title">My Applications</h1>
               <p className="dashboard-subtitle">Track your job applications and internship opportunities</p>
             </div>
-            <div className="add-property-container" onClick={() => openModal()}>
-              <span className="add-property-text">Browse Jobs</span>
-              <div className="add-property-icon">
-                <i className="fas fa-search"></i>
-              </div>
-            </div>
           </div>
 
           {/* Student Stats - UPDATED: Removed GPA, added Rejected */}
@@ -348,7 +342,7 @@ function StudentDashboard() {
             </div>
             <div className="stat-card">
               <div className="stat-number">{pendingApplications}</div>
-              <div className="stat-label">Pending</div> {/* Changed from 'Under Review' to 'Pending' */}
+              <div className="stat-label">Pending</div>
             </div>
             <div className="stat-card">
               <div className="stat-number">{approvedApplications}</div>
@@ -356,7 +350,7 @@ function StudentDashboard() {
             </div>
             <div className="stat-card">
               <div className="stat-number">{rejectedApplications}</div>
-              <div className="stat-label">Rejected</div> {/* Changed from GPA to Rejected */}
+              <div className="stat-label">Rejected</div>
             </div>
           </div>
 
@@ -438,7 +432,6 @@ function StudentDashboard() {
           </div>
         </main>
 
-        {/* Footer */}
         {/* Footer */}
         <footer>
           <div className="footer-content">
@@ -587,18 +580,6 @@ function StudentDashboard() {
         </div>
       )}
     </div>
-  );
-}
-
-// Main App Component with Router
-function App() {
-  return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<StudentDashboard />} />
-        <Route path="/profile" element={<Profile />} />
-      </Routes>
-    </Router>
   );
 }
 

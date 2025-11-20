@@ -1,3 +1,4 @@
+// Profile.js
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -70,7 +71,7 @@ function Profile() {
                             <h1 className="dashboard-title">My Profile</h1>
                             <p className="dashboard-subtitle">Manage your personal information and academic details</p>
                         </div>
-                        <div className="add-property-container" onClick={() => navigate('/')}>
+                        <div className="add-property-container" onClick={() => navigate('/student')}>
                             <span className="add-property-text">Back to Dashboard</span>
                             <div className="add-property-icon">
                                 <i className="fas fa-arrow-left"></i>
