@@ -102,17 +102,23 @@ function App() {
   // UPDATED: fetchJobs with useCallback
   const fetchJobs = useCallback(async () => {
     try {
-      // Use the actual company ID from user state
-      const companyId = user?.id || 1;
+      const companyId = user?.id;
+      
+      if (!companyId) {
+        console.log('No company ID found, skipping job fetch');
+        return;
+      }
+      
+      console.log('Fetching jobs for company:', companyId);
       
       const response = await fetch(`http://localhost:8080/api/listings/company/${companyId}`);
       
       if (response.ok) {
         const data = await response.json();
+        console.log('Jobs fetched:', data);
         setJobs(data);
       } else {
-        console.error('Failed to fetch jobs');
-        // Keep using mock data for now if API fails
+        console.error('Failed to fetch jobs, status:', response.status);
         setJobs([]);
       }
     } catch (error) {
@@ -205,6 +211,14 @@ function App() {
     e.preventDefault();
     
     try {
+      // Get company ID from user data - THIS IS CRUCIAL
+      const companyId = user?.id;
+      
+      if (!companyId) {
+        showNotification('Company information not found. Please log in again.', 'error');
+        return;
+      }
+
       // Transform form data to match your InternshipListing entity
       const jobData = {
         title: formData.title,
@@ -216,11 +230,17 @@ function App() {
         duration: formData.duration,
         deadline: formData.deadline,
         salary: parseFloat(formData.salary),
-        status: "pending" // Default status
-        // Note: You'll need to set company ID - this depends on your entity relationships
+        status: "pending",
+        // IMPORTANT: Include company object with just the ID
+        company: {
+          id: companyId
+        }
       };
 
-      const response = await fetch('/api/listings', {
+      console.log('Creating job for company:', companyId, 'with data:', jobData);
+
+      // Use your existing endpoint
+      const response = await fetch('http://localhost:8080/api/listings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -229,15 +249,19 @@ function App() {
       });
       
       if (response.ok) {
+        const createdJob = await response.json();
+        console.log('Job created successfully:', createdJob);
         closeModal();
         fetchJobs(); // Refresh the list
         showNotification('Job listing created successfully!', 'success');
       } else {
-        showNotification('Error creating job listing', 'error');
+        const errorText = await response.text();
+        console.error('Server error:', errorText);
+        showNotification('Error creating job listing: ' + errorText, 'error');
       }
     } catch (error) {
       console.error('Error creating job:', error);
-      showNotification('Error creating job listing', 'error');
+      showNotification('Error creating job listing: ' + error.message, 'error');
     }
   };
 
