@@ -2,6 +2,47 @@
 import React, { useState } from 'react';
 import './login.css';
 
+// CIT-U Courses Constants
+const CIT_U_COURSES = [
+  // CEA
+  'BS Architecture',
+  'BS Chemical Engineering',
+  'BS Civil Engineering',
+  'BS Computer Engineering',
+  'BS Electrical Engineering',
+  'BS Electronics Engineering',
+  'BS Industrial Engineering',
+  'BS Mechanical Engineering',
+  'BS Mining Engineering',
+  // CMBA
+  'BS Accountancy',
+  'BS Accounting Information Systems',
+  'BS Management Accounting',
+  'BS Business Administration',
+  'BS Hospitality Management',
+  'BS Tourism Management',
+  'BS Office Administration',
+  'Bachelor in Public Administration',
+  // CASE
+  'AB Communication',
+  'AB English with Applied Linguistics',
+  'Bachelor of Elementary Education',
+  'Bachelor of Secondary Education',
+  'Bachelor of Multimedia Arts',
+  'BS Biology',
+  'BS Math with Applied Industrial Mathematics',
+  'BS Psychology',
+  // CNAHS
+  'BS Nursing',
+  'BS Pharmacy',
+  'BS Medical Technology',
+  // CCS
+  'BS Information Technology',
+  'BS Computer Science',
+  // CCJ
+  'BS Criminology'
+];
+
 const Login = ({ onLogin }) => {
     const [isLogin, setIsLogin] = useState(true);
     const [formData, setFormData] = useState({
@@ -16,12 +57,11 @@ const Login = ({ onLogin }) => {
         department: '',
         contactPerson: '',
         contactPhone: '',
-        program: '',
+        program: '', // CHANGED: Now using string for program
         yearLevel: ''
     });
 
     const [loading, setLoading] = useState(false);
-    // In your login function, after successful login:
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -83,8 +123,9 @@ const Login = ({ onLogin }) => {
                             username: formData.username,
                             email: formData.email,
                             studName: `${formData.firstName} ${formData.lastName}`,
-                            studProgram: formData.program,
-                            studYrLevel: formData.yearLevel
+                            studProgram: formData.program, // CHANGED: Now using string
+                            studYrLevel: formData.yearLevel,
+                            course: formData.program // NEW: Add course field for backend
                         };
                         break;
                 }
@@ -215,14 +256,20 @@ const Login = ({ onLogin }) => {
                             onChange={handleChange}
                             required
                         />
-                        <input
-                            type="text"
+                        {/* CHANGED: Program as dropdown */}
+                        <select
                             name="program"
-                            placeholder="Program"
                             value={formData.program}
                             onChange={handleChange}
                             required
-                        />
+                        >
+                            <option value="">Select Program</option>
+                            {CIT_U_COURSES.map(course => (
+                                <option key={course} value={course}>
+                                    {course}
+                                </option>
+                            ))}
+                        </select>
                         <input
                             type="text"
                             name="yearLevel"

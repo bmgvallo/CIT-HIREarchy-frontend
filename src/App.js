@@ -1,6 +1,56 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 
+// CIT-U Courses Constants
+const CIT_U_COURSES = {
+  CEA: [
+    'BS Architecture',
+    'BS Chemical Engineering',
+    'BS Civil Engineering',
+    'BS Computer Engineering',
+    'BS Electrical Engineering',
+    'BS Electronics Engineering',
+    'BS Industrial Engineering',
+    'BS Mechanical Engineering',
+    'BS Mining Engineering'
+  ],
+  CMBA: [
+    'BS Accountancy',
+    'BS Accounting Information Systems',
+    'BS Management Accounting',
+    'BS Business Administration',
+    'BS Hospitality Management',
+    'BS Tourism Management',
+    'BS Office Administration',
+    'Bachelor in Public Administration'
+  ],
+  CASE: [
+    'AB Communication',
+    'AB English with Applied Linguistics',
+    'Bachelor of Elementary Education',
+    'Bachelor of Secondary Education',
+    'Bachelor of Multimedia Arts',
+    'BS Biology',
+    'BS Math with Applied Industrial Mathematics',
+    'BS Psychology'
+  ],
+  CNAHS: [
+    'BS Nursing',
+    'BS Pharmacy',
+    'BS Medical Technology'
+  ],
+  CCS: [
+    'BS Information Technology',
+    'BS Computer Science'
+  ],
+  CCJ: [
+    'BS Criminology'
+  ]
+};
+
+// Flattened course list for dropdowns
+const ALL_COURSES = Object.values(CIT_U_COURSES).flat();
+
 function App() {
   // State management - UPDATED
   const [user, setUser] = useState({
@@ -17,6 +67,7 @@ function App() {
   const [showModal, setShowModal] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [editingJobId, setEditingJobId] = useState(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -27,29 +78,8 @@ function App() {
     duration: '',
     deadline: '',
     salary: '',
-    // CEA Programs
-    civil_engineering: false,
-    chemical_engineering: false,
-    computer_engineering: false,
-    electrical_engineering: false,
-    mechanical_engineering: false,
-    architecture: false,
-    // CCS Programs
-    computer_science: false,
-    information_technology: false,
-    // CASE Programs
-    communication: false,
-    biology: false,
-    psychology: false,
-    education: false,
-    // CMBA Programs
-    accountancy: false,
-    business_admin: false,
-    hospitality_management: false,
-    // CNAHS Programs
-    nursing: false,
-    // CCJ Programs
-    criminology: false
+    // CHANGED: Now using array for selected courses
+    selectedCourses: [] // Array to store selected course names
   });
   const [activeFilter, setActiveFilter] = useState('all');
   const [activeDepartmentGroups, setActiveDepartmentGroups] = useState({
@@ -116,6 +146,8 @@ function App() {
       if (response.ok) {
         const data = await response.json();
         console.log('Jobs fetched:', data);
+        console.log('Number of jobs:', data.length);
+        console.log('Job IDs:', data.map(job => job.listingID));
         setJobs(data);
       } else {
         console.error('Failed to fetch jobs, status:', response.status);
@@ -167,6 +199,7 @@ function App() {
   const openModal = () => setShowModal(true);
   const closeModal = () => {
     setShowModal(false);
+    setEditingJobId(null); // Reset editing state
     setFormData({
       title: '',
       description: '',
@@ -177,27 +210,11 @@ function App() {
       duration: '',
       deadline: '',
       salary: '',
-      civil_engineering: false,
-      chemical_engineering: false,
-      computer_engineering: false,
-      electrical_engineering: false,
-      mechanical_engineering: false,
-      architecture: false,
-      computer_science: false,
-      information_technology: false,
-      communication: false,
-      biology: false,
-      psychology: false,
-      education: false,
-      accountancy: false,
-      business_admin: false,
-      hospitality_management: false,
-      nursing: false,
-      criminology: false
+      selectedCourses: [] // Reset selected courses
     });
   };
 
-  // Form handlers
+  // CHANGED: Form handlers for course selection
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData(prev => ({
@@ -206,12 +223,54 @@ function App() {
     }));
   };
 
-  // Replace the handleSubmit function
+  // NEW: Handle course selection
+  const handleCourseSelection = (course) => {
+    setFormData(prev => {
+      const isSelected = prev.selectedCourses.includes(course);
+      if (isSelected) {
+        // Remove course if already selected
+        return {
+          ...prev,
+          selectedCourses: prev.selectedCourses.filter(c => c !== course)
+        };
+      } else {
+        // Add course if not selected
+        return {
+          ...prev,
+          selectedCourses: [...prev.selectedCourses, course]
+        };
+      }
+    });
+  };
+
+  // NEW: Select all courses in a department
+  const selectAllCoursesInDepartment = (department) => {
+    const departmentCourses = CIT_U_COURSES[department.toUpperCase()] || [];
+    setFormData(prev => {
+      const currentCourses = new Set(prev.selectedCourses);
+      departmentCourses.forEach(course => currentCourses.add(course));
+      return {
+        ...prev,
+        selectedCourses: Array.from(currentCourses)
+      };
+    });
+  };
+
+  // NEW: Deselect all courses in a department
+  const deselectAllCoursesInDepartment = (department) => {
+    const departmentCourses = CIT_U_COURSES[department.toUpperCase()] || [];
+    setFormData(prev => ({
+      ...prev,
+      selectedCourses: prev.selectedCourses.filter(course => !departmentCourses.includes(course))
+    }));
+  };
+
+  // UPDATED: handleSubmit to include courses array
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     try {
-      // Get company ID from user data - THIS IS CRUCIAL
+      // Get company ID from user data
       const companyId = user?.id;
       
       if (!companyId) {
@@ -219,7 +278,7 @@ function App() {
         return;
       }
 
-      // Transform form data to match your InternshipListing entity
+      // UPDATED: Include courses array in job data
       const jobData = {
         title: formData.title,
         description: formData.description,
@@ -231,37 +290,80 @@ function App() {
         deadline: formData.deadline,
         salary: parseFloat(formData.salary),
         status: "pending",
-        // IMPORTANT: Include company object with just the ID
-        company: {
-          id: companyId
-        }
+        courses: formData.selectedCourses // CHANGED: Send courses array
       };
 
-      console.log('Creating job for company:', companyId, 'with data:', jobData);
+      console.log('Job data to save:', jobData);
 
-      // Use your existing endpoint
-      const response = await fetch('http://localhost:8080/api/listings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(jobData)
-      });
+      let response;
+      let savedJob;
       
-      if (response.ok) {
-        const createdJob = await response.json();
-        console.log('Job created successfully:', createdJob);
-        closeModal();
-        fetchJobs(); // Refresh the list
-        showNotification('Job listing created successfully!', 'success');
+      if (editingJobId) {
+        // UPDATE existing job
+        console.log('Updating job ID:', editingJobId);
+        response = await fetch(`http://localhost:8080/api/listings/${editingJobId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(jobData)
+        });
+        
+        if (response.ok) {
+          savedJob = await response.json();
+          console.log('Job updated successfully:', savedJob);
+          
+          // UPDATE LOCAL STATE - MAKE SURE TO KEEP THE ID
+          setJobs(prev => prev.map(job => {
+            if (job.listingID === editingJobId) {
+              return {
+                ...savedJob, // Use the returned job data
+                listingID: editingJobId // Keep the original ID
+              };
+            }
+            return job;
+          }));
+          
+          closeModal();
+          showNotification('Job listing updated successfully!', 'success');
+        } else {
+          const errorText = await response.text();
+          console.error('Server error:', errorText);
+          showNotification('Error updating job listing: ' + errorText, 'error');
+        }
       } else {
-        const errorText = await response.text();
-        console.error('Server error:', errorText);
-        showNotification('Error creating job listing: ' + errorText, 'error');
+        // CREATE new job - include company for creation only
+        console.log('Creating new job');
+        const createData = {
+          ...jobData,
+          company: { id: companyId } // Only include company for creation
+        };
+        response = await fetch('http://localhost:8080/api/listings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(createData)
+        });
+        
+        if (response.ok) {
+          savedJob = await response.json();
+          console.log('Job created successfully:', savedJob);
+          
+          // ADD TO LOCAL STATE
+          setJobs(prev => [...prev, savedJob]);
+          
+          closeModal();
+          showNotification('Job listing created successfully!', 'success');
+        } else {
+          const errorText = await response.text();
+          console.error('Server error:', errorText);
+          showNotification('Error creating job listing: ' + errorText, 'error');
+        }
       }
     } catch (error) {
-      console.error('Error creating job:', error);
-      showNotification('Error creating job listing: ' + error.message, 'error');
+      console.error('Error saving job:', error);
+      showNotification(`Error ${editingJobId ? 'updating' : 'creating'} job listing: ` + error.message, 'error');
     }
   };
 
@@ -269,7 +371,7 @@ function App() {
   const deleteJob = async (jobId) => {
     if (window.confirm('Are you sure you want to delete this job listing?')) {
       try {
-        const response = await fetch(`/api/listings/${jobId}`, {
+        const response = await fetch(`http://localhost:8080/api/listings/${jobId}`, {
           method: 'DELETE'
         });
         
@@ -286,39 +388,21 @@ function App() {
     }
   };
 
-  // Replace the editJob function to handle real data structure
+  // UPDATED: editJob to handle courses array
   const editJob = (job) => {
-    // Transform backend job data to form data
     setFormData({
-      title: job.title,
-      description: job.description,
-      location: job.location,
-      modality: job.modality,
-      requirements: job.requirements,
-      postDate: job.postDate,
-      duration: job.duration,
-      deadline: job.deadline,
-      salary: job.salary,
-      // Reset all program checkboxes
-      civil_engineering: false,
-      chemical_engineering: false,
-      computer_engineering: false,
-      electrical_engineering: false,
-      mechanical_engineering: false,
-      architecture: false,
-      computer_science: false,
-      information_technology: false,
-      communication: false,
-      biology: false,
-      psychology: false,
-      education: false,
-      accountancy: false,
-      business_admin: false,
-      hospitality_management: false,
-      nursing: false,
-      criminology: false
-      // Note: You'll need to map programs from course data if you implement that
+      title: job.title || '',
+      description: job.description || '',
+      location: job.location || '',
+      modality: job.modality || '',
+      requirements: job.requirements || '',
+      postDate: job.postDate || '',
+      duration: job.duration || '',
+      deadline: job.deadline || '',
+      salary: job.salary || '',
+      selectedCourses: job.courses || [] // CHANGED: Set selected courses from job data
     });
+    setEditingJobId(job.listingID || job.id);
     setShowModal(true);
   };
 
@@ -396,6 +480,7 @@ function App() {
     }
     return 'C'; // Default fallback
   };
+
   const toggleDepartmentGroup = (group) => {
     setActiveDepartmentGroups(prev => ({
       ...prev,
@@ -416,6 +501,19 @@ function App() {
       month: 'long',
       day: 'numeric'
     });
+  };
+
+  // NEW: Check if all courses in department are selected
+  const isAllCoursesSelected = (department) => {
+    const departmentCourses = CIT_U_COURSES[department.toUpperCase()] || [];
+    return departmentCourses.length > 0 && 
+           departmentCourses.every(course => formData.selectedCourses.includes(course));
+  };
+
+  // NEW: Check if any course in department is selected
+  const isAnyCourseSelected = (department) => {
+    const departmentCourses = CIT_U_COURSES[department.toUpperCase()] || [];
+    return departmentCourses.some(course => formData.selectedCourses.includes(course));
   };
 
   return (
@@ -606,6 +704,12 @@ function App() {
                       <span> Deadline: {formatDate(job.deadline)}</span> • 
                       <span> Duration: {job.duration}</span>
                     </div>
+                    {/* NEW: Display targeted courses */}
+                    {job.courses && job.courses.length > 0 && (
+                      <div className="targeted-courses">
+                        <strong>Targeted Courses:</strong> {job.courses.join(', ')}
+                      </div>
+                    )}
                     <div className="job-description">
                       {job.description}
                     </div>
@@ -686,7 +790,9 @@ function App() {
           <div className="modal">
             <form onSubmit={handleSubmit}>
               <div className="modal-header">
-                <h2 className="modal-title">Create New Job Listing</h2>
+                <h2 className="modal-title">
+                  {editingJobId ? 'Edit Job Listing' : 'Create New Job Listing'}
+                </h2>
                 <button type="button" className="close-modal" onClick={closeModal}>
                   <i className="fas fa-times"></i>
                 </button>
@@ -828,9 +934,30 @@ function App() {
                   </div>
                 </div>
                 
-                {/* Target Departments & Programs */}
+                {/* Target Departments & Programs - UPDATED */}
                 <div className="amenities-section">
                   <h3 className="section-title">Target Departments & Programs</h3>
+                  <div className="selected-courses-preview">
+                    <strong>Selected Courses ({formData.selectedCourses.length}):</strong>
+                    {formData.selectedCourses.length > 0 ? (
+                      <div className="selected-courses-list">
+                        {formData.selectedCourses.map(course => (
+                          <span key={course} className="selected-course-tag">
+                            {course}
+                            <button 
+                              type="button"
+                              onClick={() => handleCourseSelection(course)}
+                              className="remove-course-btn"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span style={{ color: '#999', fontStyle: 'italic' }}>No courses selected</span>
+                    )}
+                  </div>
                   
                   {/* College of Engineering and Architecture (CEA) */}
                   <div className={`amenity-group ${activeDepartmentGroups.cea ? 'active' : ''}`}>
@@ -839,25 +966,37 @@ function App() {
                         <i className="fas fa-cogs amenity-icon"></i>
                         <span>College of Engineering and Architecture (CEA)</span>
                       </div>
-                      <i className={`fas fa-chevron-down amenity-chevron ${activeDepartmentGroups.cea ? 'rotated' : ''}`}></i>
+                      <div className="department-actions">
+                        <button 
+                          type="button"
+                          className="select-all-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isAllCoursesSelected('CEA')) {
+                              deselectAllCoursesInDepartment('CEA');
+                            } else {
+                              selectAllCoursesInDepartment('CEA');
+                            }
+                          }}
+                        >
+                          {isAllCoursesSelected('CEA') ? 'Deselect All' : 'Select All'}
+                        </button>
+                        <i className={`fas fa-chevron-down amenity-chevron ${activeDepartmentGroups.cea ? 'rotated' : ''}`}></i>
+                      </div>
                     </div>
                     <div className="amenity-content">
                       <div className="amenity-grid">
-                        {[
-                          'civil_engineering', 'chemical_engineering', 'computer_engineering',
-                          'electrical_engineering', 'mechanical_engineering', 'architecture'
-                        ].map(program => (
-                          <div key={program} className="amenity-item">
+                        {CIT_U_COURSES.CEA.map(course => (
+                          <div key={course} className="amenity-item">
                             <input
                               type="checkbox"
-                              id={program}
-                              name={program}
-                              checked={formData[program]}
-                              onChange={handleInputChange}
+                              id={course.replace(/\s+/g, '_')}
+                              checked={formData.selectedCourses.includes(course)}
+                              onChange={() => handleCourseSelection(course)}
                               className="amenity-checkbox"
                             />
-                            <label htmlFor={program} className="amenity-label">
-                              {program.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                            <label htmlFor={course.replace(/\s+/g, '_')} className="amenity-label">
+                              {course}
                             </label>
                           </div>
                         ))}
@@ -872,22 +1011,37 @@ function App() {
                         <i className="fas fa-laptop-code amenity-icon"></i>
                         <span>College of Computer Studies (CCS)</span>
                       </div>
-                      <i className={`fas fa-chevron-down amenity-chevron ${activeDepartmentGroups.ccs ? 'rotated' : ''}`}></i>
+                      <div className="department-actions">
+                        <button 
+                          type="button"
+                          className="select-all-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isAllCoursesSelected('CCS')) {
+                              deselectAllCoursesInDepartment('CCS');
+                            } else {
+                              selectAllCoursesInDepartment('CCS');
+                            }
+                          }}
+                        >
+                          {isAllCoursesSelected('CCS') ? 'Deselect All' : 'Select All'}
+                        </button>
+                        <i className={`fas fa-chevron-down amenity-chevron ${activeDepartmentGroups.ccs ? 'rotated' : ''}`}></i>
+                      </div>
                     </div>
                     <div className="amenity-content">
                       <div className="amenity-grid">
-                        {['computer_science', 'information_technology'].map(program => (
-                          <div key={program} className="amenity-item">
+                        {CIT_U_COURSES.CCS.map(course => (
+                          <div key={course} className="amenity-item">
                             <input
                               type="checkbox"
-                              id={program}
-                              name={program}
-                              checked={formData[program]}
-                              onChange={handleInputChange}
+                              id={course.replace(/\s+/g, '_')}
+                              checked={formData.selectedCourses.includes(course)}
+                              onChange={() => handleCourseSelection(course)}
                               className="amenity-checkbox"
                             />
-                            <label htmlFor={program} className="amenity-label">
-                              {program.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                            <label htmlFor={course.replace(/\s+/g, '_')} className="amenity-label">
+                              {course}
                             </label>
                           </div>
                         ))}
@@ -902,22 +1056,37 @@ function App() {
                         <i className="fas fa-palette amenity-icon"></i>
                         <span>College of Arts, Sciences, and Education (CASE)</span>
                       </div>
-                      <i className={`fas fa-chevron-down amenity-chevron ${activeDepartmentGroups.case ? 'rotated' : ''}`}></i>
+                      <div className="department-actions">
+                        <button 
+                          type="button"
+                          className="select-all-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isAllCoursesSelected('CASE')) {
+                              deselectAllCoursesInDepartment('CASE');
+                            } else {
+                              selectAllCoursesInDepartment('CASE');
+                            }
+                          }}
+                        >
+                          {isAllCoursesSelected('CASE') ? 'Deselect All' : 'Select All'}
+                        </button>
+                        <i className={`fas fa-chevron-down amenity-chevron ${activeDepartmentGroups.case ? 'rotated' : ''}`}></i>
+                      </div>
                     </div>
                     <div className="amenity-content">
                       <div className="amenity-grid">
-                        {['communication', 'biology', 'psychology', 'education'].map(program => (
-                          <div key={program} className="amenity-item">
+                        {CIT_U_COURSES.CASE.map(course => (
+                          <div key={course} className="amenity-item">
                             <input
                               type="checkbox"
-                              id={program}
-                              name={program}
-                              checked={formData[program]}
-                              onChange={handleInputChange}
+                              id={course.replace(/\s+/g, '_')}
+                              checked={formData.selectedCourses.includes(course)}
+                              onChange={() => handleCourseSelection(course)}
                               className="amenity-checkbox"
                             />
-                            <label htmlFor={program} className="amenity-label">
-                              {program.charAt(0).toUpperCase() + program.slice(1)}
+                            <label htmlFor={course.replace(/\s+/g, '_')} className="amenity-label">
+                              {course}
                             </label>
                           </div>
                         ))}
@@ -932,22 +1101,37 @@ function App() {
                         <i className="fas fa-chart-line amenity-icon"></i>
                         <span>College of Management, Business and Accountancy (CMBA)</span>
                       </div>
-                      <i className={`fas fa-chevron-down amenity-chevron ${activeDepartmentGroups.cmba ? 'rotated' : ''}`}></i>
+                      <div className="department-actions">
+                        <button 
+                          type="button"
+                          className="select-all-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isAllCoursesSelected('CMBA')) {
+                              deselectAllCoursesInDepartment('CMBA');
+                            } else {
+                              selectAllCoursesInDepartment('CMBA');
+                            }
+                          }}
+                        >
+                          {isAllCoursesSelected('CMBA') ? 'Deselect All' : 'Select All'}
+                        </button>
+                        <i className={`fas fa-chevron-down amenity-chevron ${activeDepartmentGroups.cmba ? 'rotated' : ''}`}></i>
+                      </div>
                     </div>
                     <div className="amenity-content">
                       <div className="amenity-grid">
-                        {['accountancy', 'business_admin', 'hospitality_management'].map(program => (
-                          <div key={program} className="amenity-item">
+                        {CIT_U_COURSES.CMBA.map(course => (
+                          <div key={course} className="amenity-item">
                             <input
                               type="checkbox"
-                              id={program}
-                              name={program}
-                              checked={formData[program]}
-                              onChange={handleInputChange}
+                              id={course.replace(/\s+/g, '_')}
+                              checked={formData.selectedCourses.includes(course)}
+                              onChange={() => handleCourseSelection(course)}
                               className="amenity-checkbox"
                             />
-                            <label htmlFor={program} className="amenity-label">
-                              {program.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                            <label htmlFor={course.replace(/\s+/g, '_')} className="amenity-label">
+                              {course}
                             </label>
                           </div>
                         ))}
@@ -962,16 +1146,31 @@ function App() {
                         <i className="fas fa-heartbeat amenity-icon"></i>
                         <span>College of Nursing and Allied Health Sciences (CNAHS)</span>
                       </div>
-                      <i className={`fas fa-chevron-down amenity-chevron ${activeDepartmentGroups.cnahs ? 'rotated' : ''}`}></i>
+                      <div className="department-actions">
+                        <button 
+                          type="button"
+                          className="select-all-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isAllCoursesSelected('CNAHS')) {
+                              deselectAllCoursesInDepartment('CNAHS');
+                            } else {
+                              selectAllCoursesInDepartment('CNAHS');
+                            }
+                          }}
+                        >
+                          {isAllCoursesSelected('CNAHS') ? 'Deselect All' : 'Select All'}
+                        </button>
+                        <i className={`fas fa-chevron-down amenity-chevron ${activeDepartmentGroups.cnahs ? 'rotated' : ''}`}></i>
+                      </div>
                     </div>
                     <div className="amenity-content">
                       <div className="amenity-item">
                         <input
                           type="checkbox"
                           id="nursing"
-                          name="nursing"
-                          checked={formData.nursing}
-                          onChange={handleInputChange}
+                          checked={formData.selectedCourses.includes('Nursing')}
+                          onChange={() => handleCourseSelection('Nursing')}
                           className="amenity-checkbox"
                         />
                         <label htmlFor="nursing" className="amenity-label">
@@ -988,16 +1187,31 @@ function App() {
                         <i className="fas fa-shield-alt amenity-icon"></i>
                         <span>College of Criminal Justice (CCJ)</span>
                       </div>
-                      <i className={`fas fa-chevron-down amenity-chevron ${activeDepartmentGroups.ccj ? 'rotated' : ''}`}></i>
+                      <div className="department-actions">
+                        <button 
+                          type="button"
+                          className="select-all-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isAllCoursesSelected('CCJ')) {
+                              deselectAllCoursesInDepartment('CCJ');
+                            } else {
+                              selectAllCoursesInDepartment('CCJ');
+                            }
+                          }}
+                        >
+                          {isAllCoursesSelected('CCJ') ? 'Deselect All' : 'Select All'}
+                        </button>
+                        <i className={`fas fa-chevron-down amenity-chevron ${activeDepartmentGroups.ccj ? 'rotated' : ''}`}></i>
+                      </div>
                     </div>
                     <div className="amenity-content">
                       <div className="amenity-item">
                         <input
                           type="checkbox"
                           id="criminology"
-                          name="criminology"
-                          checked={formData.criminology}
-                          onChange={handleInputChange}
+                          checked={formData.selectedCourses.includes('Criminology')}
+                          onChange={() => handleCourseSelection('Criminology')}
                           className="amenity-checkbox"
                         />
                         <label htmlFor="criminology" className="amenity-label">
@@ -1010,7 +1224,9 @@ function App() {
                         
                 <div className="modal-footer">
                   <button type="button" className="btn btn-secondary" onClick={closeModal}>Cancel</button>
-                  <button type="submit" className="btn btn-primary">Create Job Listing</button>
+                  <button type="submit" className="btn btn-primary">
+                    {editingJobId ? 'Update Job Listing' : 'Create Job Listing'}
+                  </button>
                 </div>
               </div>
             </form>
