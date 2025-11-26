@@ -992,4 +992,71 @@ textarea.form-input {
         align-self: stretch;
         justify-content: center;
     }
+
+    /* Add to App.css */
+.selected-courses-preview {
+  margin-bottom: 20px;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.selected-courses-list {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.selected-course-tag {
+  background: #007bff;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.remove-course-btn {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.department-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.select-all-btn {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.select-all-btn:hover {
+  background: #5a6268;
+}
+
+.targeted-courses {
+  margin: 10px 0;
+  font-size: 14px;
+  color: #666;
+}
 }
