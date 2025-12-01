@@ -3,53 +3,63 @@ import React, { useState, useEffect } from 'react';
 import Login from './login';
 import App from './App';
 import Coordinator from './Coordinator';
-import Student from './Student'; // You'll need to create this
+import Student from './Student';
 
 const MainApp = () => {
     const [user, setUser] = useState(null);
     const [role, setRole] = useState(null);
-    const [userType, setUserType] = useState(null);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         // Check if user is already logged in
         const savedUser = localStorage.getItem('user');
         const savedRole = localStorage.getItem('role');
-        const savedUserType = localStorage.getItem('userType');
         
-        if (savedUser && savedRole && savedUserType) {
+        if (savedUser && savedRole) {
             setUser(JSON.parse(savedUser));
             setRole(savedRole);
-            setUserType(savedUserType);
         }
+        setLoading(false);
     }, []);
 
-    const handleLogin = (userRole, userData, userType) => {
+    const handleLogin = (userRole, userData) => {
+        console.log('Login successful:', { userRole, userData });
+        
+        // Save to localStorage
+        localStorage.setItem('user', JSON.stringify(userData));
+        localStorage.setItem('role', userRole);
+        
+        // Update state
         setRole(userRole);
         setUser(userData);
-        setUserType(userType);
     };
 
     const handleLogout = () => {
         localStorage.removeItem('user');
         localStorage.removeItem('role');
-        localStorage.removeItem('userType');
         setUser(null);
         setRole(null);
-        setUserType(null);
+        window.location.href = '/login';
     };
 
     const renderDashboard = () => {
         switch(role) {
             case '25-101': // Coordinator
-                return <Coordinator user={user} onLogout={handleLogout} />;
+                return <Coordinator />;
             case '25-102': // Company
-                return <App user={user} onLogout={handleLogout} />;
+                return <App />;
             case '25-103': // Student
-                return <Student user={user} onLogout={handleLogout} />;
+                return <Student />;
             default:
                 return <Login onLogin={handleLogin} />;
         }
     };
+
+    if (loading) {
+        return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+            Loading...
+        </div>;
+    }
 
     return (
         <div className="main-app">

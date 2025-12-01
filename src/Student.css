@@ -1030,4 +1030,35 @@ textarea.form-input {
         align-self: stretch;
         justify-content: center;
     }
+
+    /* Add to Student.css */
+.application-feedback {
+  background: #f8f9fa;
+  padding: 10px;
+  border-radius: 5px;
+  border-left: 4px solid #450000;
+  margin: 10px 0;
+  font-size: 14px;
+}
+
+.application-feedback strong {
+  color: #450000;
+}
+
+.status-message {
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  display: inline-block;
+  margin-left: 10px;
+}
+
+.property-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border);
+  align-items: center;
+}
 }

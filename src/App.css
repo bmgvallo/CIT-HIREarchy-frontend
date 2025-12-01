@@ -386,7 +386,8 @@ body {
     border-top: 1px solid var(--border);
 }
 
-.btn-edit, .btn-delete {
+.btn-edit,
+.btn-delete {
     flex: 1;
     padding: 10px 16px;
     border: none;
@@ -800,7 +801,7 @@ textarea.form-input {
     right: 0;
     background: white;
     border-radius: 12px;
-    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
     width: 350px;
     max-height: 400px;
     overflow-y: auto;
@@ -949,114 +950,298 @@ textarea.form-input {
     .container {
         padding: 15px 20px;
     }
-    
+
     .properties-container {
         grid-template-columns: 1fr;
         gap: 20px;
     }
-    
+
     .stats-container {
         grid-template-columns: repeat(2, 1fr);
         gap: 15px;
     }
-    
+
     .property-actions {
         flex-direction: column;
         gap: 10px;
     }
-    
+
     .filter-section {
         gap: 20px;
     }
-    
+
     .footer-content {
         grid-template-columns: 1fr;
         gap: 30px;
     }
-    
+
     .form-row {
         flex-direction: column;
         gap: 0;
     }
-    
+
     .amenity-grid {
         grid-template-columns: 1fr;
     }
-    
+
     .dashboard-header {
         flex-direction: column;
         align-items: flex-start;
     }
-    
+
     .add-property-container {
         align-self: stretch;
         justify-content: center;
     }
 
     /* Add to App.css */
-.selected-courses-preview {
-  margin-bottom: 20px;
-  padding: 15px;
-  background: #f8f9fa;
-  border-radius: 8px;
-  border: 1px solid #e9ecef;
-}
+    .selected-courses-preview {
+        margin-bottom: 20px;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        border: 1px solid #e9ecef;
+    }
 
-.selected-courses-list {
-  margin-top: 10px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
+    .selected-courses-list {
+        margin-top: 10px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
 
-.selected-course-tag {
-  background: #007bff;
-  color: white;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
+    .selected-course-tag {
+        background: #007bff;
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
 
-.remove-course-btn {
-  background: none;
-  border: none;
-  color: white;
-  cursor: pointer;
-  font-size: 14px;
-  padding: 0;
-  width: 16px;
-  height: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+    .remove-course-btn {
+        background: none;
+        border: none;
+        color: white;
+        cursor: pointer;
+        font-size: 14px;
+        padding: 0;
+        width: 16px;
+        height: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
 
-.department-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
+    .department-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
 
-.select-all-btn {
-  background: #6c757d;
-  color: white;
-  border: none;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  cursor: pointer;
-}
+    .select-all-btn {
+        background: #6c757d;
+        color: white;
+        border: none;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        cursor: pointer;
+    }
 
-.select-all-btn:hover {
-  background: #5a6268;
-}
+    .select-all-btn:hover {
+        background: #5a6268;
+    }
 
-.targeted-courses {
-  margin: 10px 0;
-  font-size: 14px;
-  color: #666;
-}
+    .targeted-courses {
+        margin: 10px 0;
+        font-size: 14px;
+        color: #666;
+    }
+
+    /* Add to App.css */
+    .btn-view {
+        background-color: #17a2b8;
+        color: white;
+        border: none;
+        padding: 10px 16px;
+        border-radius: 6px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        flex: 1;
+    }
+
+    .btn-view:hover {
+        background-color: #138496;
+        transform: translateY(-1px);
+    }
+
+    .applications-count {
+        background: #f8f9fa;
+        padding: 8px 12px;
+        border-radius: 6px;
+        margin: 10px 0;
+        border: 1px solid #e9ecef;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .applications-count .pending-count {
+        color: #f59e0b;
+        font-weight: 600;
+        margin-left: auto;
+    }
+
+    /* Applications Modal */
+    .applications-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+    }
+
+    .applications-table th {
+        background: #f8f9fa;
+        padding: 12px;
+        text-align: left;
+        font-weight: 600;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .applications-table td {
+        padding: 12px;
+        border-bottom: 1px solid #dee2e6;
+        vertical-align: middle;
+    }
+
+    .application-status {
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .status-pending {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .status-approved {
+        background: #d1fae5;
+        color: #065f46;
+    }
+
+    .status-rejected {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    .application-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .btn-review {
+        background: #17a2b8;
+        color: white;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    /* Application Details Modal */
+    .application-details {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        margin: 15px 0;
+    }
+
+    .student-info {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+
+    .info-item {
+        background: white;
+        padding: 12px;
+        border-radius: 6px;
+        border: 1px solid #dee2e6;
+    }
+
+    .cover-letter {
+        background: white;
+        padding: 15px;
+        border-radius: 6px;
+        border: 1px solid #dee2e6;
+        margin: 15px 0;
+        white-space: pre-wrap;
+        line-height: 1.6;
+    }
+
+    .feedback-section {
+        margin: 20px 0;
+    }
+
+    .feedback-textarea {
+        width: 100%;
+        padding: 12px;
+        border: 2px solid #dee2e6;
+        border-radius: 6px;
+        margin-top: 8px;
+        font-family: inherit;
+        resize: vertical;
+        min-height: 100px;
+    }
+
+    .application-decision-buttons {
+        display: flex;
+        gap: 12px;
+        margin-top: 20px;
+    }
+
+    .btn-accept {
+        background: #28a745;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: 1;
+    }
+
+    .btn-reject-app {
+        background: #dc3545;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: 1;
+    }
 }
