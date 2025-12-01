@@ -1,14 +1,15 @@
-import React, { useState, useEffect, useCallback } from 'react'; 
+import React, { useState, useEffect, useCallback } from 'react';
 import './Coordinator.css';
 
 function Coordinator() {
   // State management
   const [user, setUser] = useState({
-    username: 'coordinator_user',
-    first_name: 'Coordinator',
-    last_name: 'User'
+    username: '',
+    coordinatorName: '',
+    coordinatorDepartment: '',
+    id: null
   });
-  
+
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [jobs, setJobs] = useState([]);
@@ -16,115 +17,32 @@ function Coordinator() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('pending');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [selectedJob, setSelectedJob] = useState(null);
   const [showJobModal, setShowJobModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [coordinatorId, setCoordinatorId] = useState(null);
 
   const fetchCoordinatorData = useCallback(async () => {
     try {
       const savedUser = localStorage.getItem('user');
       if (savedUser) {
         const userData = JSON.parse(savedUser);
-        console.log('Coordinator data from localStorage:', userData);
-        
-        // Use the data that was saved during login
+        console.log('Coordinator data:', userData);
+
         setUser({
-          username: userData.username || 'coordinator_user',
-          first_name: userData.coordinatorName || userData.first_name || 'Coordinator',
-          last_name: userData.coordinatorDepartment ? `(${userData.coordinatorDepartment})` : 'User',
+          username: userData.username || '',
+          coordinatorName: userData.coordinatorName || '',
+          coordinatorDepartment: userData.coordinatorDepartment || '',
           id: userData.id
         });
+        setCoordinatorId(userData.id);
       }
     } catch (error) {
       console.error('Error setting coordinator data:', error);
     }
   }, []);
-
-  // Mock data for testing
-  const mockJobs = [
-    {
-      id: 1,
-      title: 'Software Engineer',
-      company: 'Tech Corp',
-      location: 'Manila',
-      salary: 50000,
-      modality: 'Hybrid',
-      duration: 'Full-time',
-      postDate: '2024-01-15',
-      deadline: '2024-02-15',
-      description: 'We are looking for a skilled software engineer with experience in modern web technologies. The ideal candidate will have strong problem-solving skills and ability to work in a fast-paced environment.',
-      requirements: '3+ years experience, JavaScript, React, Node.js, SQL, Git',
-      status: 'pending',
-      cea: false,
-      ccs: true,
-      case: false,
-      cmba: false,
-      cnahs: false,
-      ccj: false
-    },
-    {
-      id: 2,
-      title: 'Marketing Manager',
-      company: 'Digital Agency Inc',
-      location: 'Remote',
-      salary: 45000,
-      modality: 'Remote',
-      duration: 'Full-time',
-      postDate: '2024-01-10',
-      deadline: '2024-02-10',
-      description: 'Seeking an experienced Marketing Manager to lead our digital marketing campaigns and drive brand awareness.',
-      requirements: '5+ years marketing experience, SEO, Social Media, Content Strategy, Analytics',
-      status: 'approved',
-      cea: false,
-      ccs: false,
-      case: true,
-      cmba: true,
-      cnahs: false,
-      ccj: false
-    },
-    {
-      id: 3,
-      title: 'Civil Engineer',
-      company: 'Construction Partners',
-      location: 'Cebu',
-      salary: 40000,
-      modality: 'On-site',
-      duration: 'Full-time',
-      postDate: '2024-01-05',
-      deadline: '2024-01-30',
-      description: 'Civil engineer needed for infrastructure projects including bridges, roads, and building construction.',
-      requirements: 'Civil Engineering license, 2+ years experience, AutoCAD, Project Management',
-      status: 'rejected',
-      rejection_reason: 'Insufficient experience requirements for this senior position',
-      cea: true,
-      ccs: false,
-      case: false,
-      cmba: false,
-      cnahs: false,
-      ccj: false
-    },
-    {
-      id: 4,
-      title: 'Nursing Supervisor',
-      company: 'Metro Hospital',
-      location: 'Quezon City',
-      salary: 55000,
-      modality: 'On-site',
-      duration: 'Full-time',
-      postDate: '2024-01-20',
-      deadline: '2024-02-20',
-      description: 'Looking for a Nursing Supervisor to oversee nursing staff and ensure quality patient care.',
-      requirements: 'Registered Nurse, 5+ years experience, Supervisory experience, BLS/ACLS certified',
-      status: 'pending',
-      cea: false,
-      ccs: false,
-      case: false,
-      cmba: false,
-      cnahs: true,
-      ccj: false
-    }
-  ];
 
   // Stats
   const totalJobs = jobs.length;
@@ -135,16 +53,21 @@ function Coordinator() {
   // Fetch initial data
   useEffect(() => {
     fetchCoordinatorData();
-    fetchJobs();
-    fetchNotifications();
   }, [fetchCoordinatorData]);
+
+  useEffect(() => {
+    if (coordinatorId) {
+      fetchJobs();
+      fetchNotifications();
+    }
+  }, [coordinatorId]);
 
   // Filter jobs when search term or status filter changes
   useEffect(() => {
     const filtered = jobs.filter(job => {
       const matchesSearch = job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          job.company?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          job.location.toLowerCase().includes(searchTerm.toLowerCase());
+        (job.company?.companyName?.toLowerCase().includes(searchTerm.toLowerCase()) || '') ||
+        job.location.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === 'all' || job.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
@@ -153,175 +76,223 @@ function Coordinator() {
 
   const fetchJobs = async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/coordinator/jobs');
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Jobs from API:', data);
-        
-        // Transform the data here, inside the if block
-        const transformedJobs = data.map(job => ({
-          id: job.listingID || job.id,
-          title: job.title,
-          company: job.company?.companyName || 'Company',
-          location: job.location,
-          salary: job.salary,
-          modality: job.modality,
-          duration: job.duration,
-          postDate: job.postDate,
-          deadline: job.deadline,
-          description: job.description,
-          requirements: job.requirements,
-          status: job.status || 'pending',
-          cea: false,
-          ccs: false,
-          case: false,
-          cmba: false,
-          cnahs: false,
-          ccj: false
-        }));
+      console.log('Fetching jobs for coordinator:', coordinatorId, 'Department:', user.coordinatorDepartment);
 
-        setJobs(transformedJobs);
+      // FIRST: Try to get ALL jobs for the department
+      const response = await fetch(`http://localhost:8080/api/listings/department/${user.coordinatorDepartment}`);
+
+      if (response.ok) {
+        const departmentJobs = await response.json();
+        console.log('Department jobs from API:', departmentJobs);
+
+        // Set ALL jobs (pending, approved, rejected)
+        setJobs(departmentJobs);
+
+      } else if (response.status === 404) {
+        // If department endpoint doesn't exist, fallback to getting ALL jobs
+        console.log('Department endpoint not found, fetching all jobs...');
+        const allJobsResponse = await fetch('http://localhost:8080/api/listings');
+
+        if (allJobsResponse.ok) {
+          const allJobs = await allJobsResponse.json();
+          console.log('All jobs from API:', allJobs);
+
+          // Filter jobs by department manually
+          const departmentJobs = allJobs.filter(job => {
+            // Filter by coordinator's department
+            if (!user.coordinatorDepartment) return true;
+
+            // Check if job courses match coordinator's department
+            if (!job.courses || job.courses.length === 0) return false;
+
+            const departmentUpper = user.coordinatorDepartment.toUpperCase();
+            const departmentMap = {
+              'CEA': ['Architecture', 'Engineering'],
+              'CCS': ['Information Technology', 'Computer Science'],
+              'CASE': ['Arts', 'Sciences', 'Education', 'Communication', 'Psychology'],
+              'CMBA': ['Business', 'Accountancy', 'Management', 'Hospitality', 'Tourism'],
+              'CNAHS': ['Nursing', 'Pharmacy', 'Medical'],
+              'CCJ': ['Criminology']
+            };
+
+            const keywords = departmentMap[departmentUpper] || [];
+            return job.courses.some(course => {
+              const courseLower = course.toLowerCase();
+              return keywords.some(keyword =>
+                courseLower.includes(keyword.toLowerCase())
+              );
+            });
+          });
+
+          console.log('Filtered department jobs:', departmentJobs);
+          setJobs(departmentJobs);
+        } else {
+          console.error('Failed to fetch all jobs');
+          setJobs([]);
+        }
       } else {
-        console.error('Failed to fetch jobs, using mock data');
-        setJobs(mockJobs);
+        console.error('Failed to fetch department jobs:', response.status);
+        setJobs([]);
       }
     } catch (error) {
       console.error('Error fetching jobs:', error);
-      setJobs(mockJobs);
+      setJobs([]);
     }
   };
 
   const fetchNotifications = async () => {
     try {
-      // Mock notifications
-      setNotifications([
+      const mockNotifications = [
         {
           id: 1,
-          message: 'New job listing requires approval: Software Engineer',
+          message: 'New job listing requires approval',
           notification_type: 'new_job',
           is_read: false,
           created_at: '2 hours ago'
         },
         {
           id: 2,
-          message: 'Job listing approved: Marketing Manager',
+          message: 'Job listing approved',
           notification_type: 'approval',
           is_read: true,
           created_at: '1 day ago'
         }
-      ]);
+      ];
+      setNotifications(mockNotifications);
       setUnreadCount(1);
     } catch (error) {
       console.error('Error fetching notifications:', error);
     }
   };
 
-  // Job actions
+  // Job approval
   const approveJob = async (jobId) => {
-    try {
-      const response = await fetch(`http://localhost:8080/api/coordinator/jobs/${jobId}/approve`, {
-        method: 'POST'
-      });
-      
-      if (response.ok) {
-        setJobs(prev => prev.map(job => 
-          job.id === jobId ? { ...job, status: 'approved' } : job
-        ));
-        showNotification('Job listing approved successfully', 'success');
-      } else {
+    if (!coordinatorId) {
+      showNotification('Coordinator ID not found', 'error');
+      return;
+    }
+
+    if (window.confirm('Are you sure you want to approve this job listing?')) {
+      setLoading(true);
+      try {
+        const response = await fetch(`http://localhost:8080/api/coordinator/jobs/${jobId}/approve?coordinatorId=${coordinatorId}`, {
+          method: 'POST'
+        });
+
+        if (response.ok) {
+          const updatedJob = await response.json();
+          setJobs(prev => prev.map(job =>
+            job.listingID === jobId ? updatedJob : job
+          ));
+          showNotification('Job listing approved successfully', 'success');
+        } else if (response.status === 403) {
+          showNotification('You do not have permission to approve listings from this department', 'error');
+        } else {
+          showNotification('Error approving job listing', 'error');
+        }
+      } catch (error) {
+        console.error('Error approving job:', error);
         showNotification('Error approving job listing', 'error');
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Error approving job:', error);
-      showNotification('Error approving job listing', 'error');
     }
   };
 
+  // Job rejection
   const rejectJob = async (jobId, reason) => {
-    try {
-      const response = await fetch(`http://localhost:8080/api/coordinator/jobs/${jobId}/reject`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ reason })
-      });
-      
-      if (response.ok) {
-        setJobs(prev => prev.map(job => 
-          job.id === jobId ? { ...job, status: 'rejected', rejection_reason: reason } : job
-        ));
-        setRejectionReason('');
-        setShowJobModal(false);
-        showNotification('Job listing rejected successfully', 'success');
-      } else {
+    if (!coordinatorId) {
+      showNotification('Coordinator ID not found', 'error');
+      return;
+    }
+
+    if (window.confirm('Are you sure you want to reject this job listing?')) {
+      setLoading(true);
+      try {
+        const response = await fetch(`http://localhost:8080/api/coordinator/jobs/${jobId}/reject?coordinatorId=${coordinatorId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ reason })
+        });
+
+        if (response.ok) {
+          const updatedJob = await response.json();
+          setJobs(prev => prev.map(job =>
+            job.listingID === jobId ? updatedJob : job
+          ));
+          setRejectionReason('');
+          setShowJobModal(false);
+          showNotification('Job listing rejected successfully', 'success');
+        } else if (response.status === 403) {
+          showNotification('You do not have permission to reject listings from this department', 'error');
+        } else {
+          showNotification('Error rejecting job listing', 'error');
+        }
+      } catch (error) {
+        console.error('Error rejecting job:', error);
         showNotification('Error rejecting job listing', 'error');
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Error rejecting job:', error);
-      showNotification('Error rejecting job listing', 'error');
     }
   };
 
   const openRejectModal = (job) => {
     setSelectedJob(job);
-    setRejectionReason(job.rejection_reason || '');
+    setRejectionReason(job.rejectionReason || '');
     setShowJobModal(true);
   };
 
   const viewJobDetails = (job) => {
     setSelectedJob(job);
-    setRejectionReason(job.rejection_reason || '');
+    setRejectionReason(job.rejectionReason || '');
     setShowJobModal(true);
   };
 
   // Notification handlers
   const markAsRead = async (notificationId) => {
-    try {
-      setNotifications(prev => 
-        prev.map(n => 
-          n.id === notificationId ? { ...n, is_read: true } : n
-        )
-      );
-      setUnreadCount(prev => prev - 1);
-    } catch (error) {
-      console.error('Error marking notification as read:', error);
-    }
+    setNotifications(prev =>
+      prev.map(n =>
+        n.id === notificationId ? { ...n, is_read: true } : n
+      )
+    );
+    setUnreadCount(prev => prev - 1);
   };
 
   const markAllAsRead = async () => {
-    try {
-      setNotifications(prev => 
-        prev.map(n => ({ ...n, is_read: true }))
-      );
-      setUnreadCount(0);
-    } catch (error) {
-      console.error('Error marking all as read:', error);
-    }
+    setNotifications(prev =>
+      prev.map(n => ({ ...n, is_read: true }))
+    );
+    setUnreadCount(0);
   };
 
   // Utility functions
   const showNotification = (message, type) => {
-    // Implement your notification system here
-    console.log(`${type}: ${message}`);
+    alert(`${type.toUpperCase()}: ${message}`);
   };
 
   const getInitials = () => {
-    if (user.first_name && user.last_name) {
-      return `${user.first_name[0]}${user.last_name[0]}`.toUpperCase();
+    if (user.coordinatorName && user.coordinatorName.trim()) {
+      const names = user.coordinatorName.split(' ');
+      if (names.length >= 2) {
+        return `${names[0][0]}${names[1][0]}`.toUpperCase();
+      }
+      return user.coordinatorName[0].toUpperCase();
     }
-    return user.username[0].toUpperCase();
+    return user.username[0]?.toUpperCase() || 'C';
   };
 
   const formatSalary = (salary) => {
     return new Intl.NumberFormat('en-PH', {
       style: 'currency',
       currency: 'PHP'
-    }).format(salary);
+    }).format(salary || 0);
   };
 
   const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
@@ -339,28 +310,34 @@ function Coordinator() {
   };
 
   const getDepartmentsList = (job) => {
-    const departments = [];
-    if (job.cea) departments.push('CEA');
-    if (job.ccs) departments.push('CCS');
-    if (job.case) departments.push('CASE');
-    if (job.cmba) departments.push('CMBA');
-    if (job.cnahs) departments.push('CNAHS');
-    if (job.ccj) departments.push('CCJ');
-    return departments.join(', ');
+    // Extract courses and group by department
+    if (!job.courses || job.courses.length === 0) return 'All Departments';
+
+    const departmentMap = {
+      'CEA': ['Architecture', 'Engineering'],
+      'CCS': ['Information Technology', 'Computer Science'],
+      'CASE': ['Arts', 'Sciences', 'Education'],
+      'CMBA': ['Business', 'Accountancy', 'Management'],
+      'CNAHS': ['Nursing', 'Pharmacy', 'Medical Technology'],
+      'CCJ': ['Criminology']
+    };
+
+    const departments = new Set();
+    job.courses.forEach(course => {
+      for (const [dept, keywords] of Object.entries(departmentMap)) {
+        if (keywords.some(keyword => course.includes(keyword))) {
+          departments.add(dept);
+        }
+      }
+    });
+
+    return Array.from(departments).join(', ');
   };
 
   const handleLogout = () => {
-    // Clear all storage
-    localStorage.removeItem('user');
-    localStorage.removeItem('role');
-    localStorage.removeItem('userType');
-    localStorage.removeItem('token');
+    localStorage.clear();
     sessionStorage.clear();
-    
-    // Show logout notification
     showNotification('Logged out successfully', 'success');
-    
-    // Redirect to login page
     setTimeout(() => {
       window.location.href = '/login';
     }, 1000);
@@ -372,7 +349,7 @@ function Coordinator() {
       <div className="header-container">
         <div className="header-content">
           <div className="logo-section">
-            <h2>HIRE<span>archy</span> <span className="coordinator-badge">Coordinator</span></h2>
+            <h2>HIRE<span>archy</span> <span className="admin-badge">Coordinator</span></h2>
           </div>
 
           <div className="header-right">
@@ -388,7 +365,7 @@ function Coordinator() {
                   <h3>Notifications</h3>
                   {unreadCount > 0 && <span className="unread-count">{unreadCount} unread</span>}
                 </div>
-                
+
                 <div className="notifications-list">
                   {notifications.length > 0 ? (
                     notifications.map(notification => (
@@ -396,8 +373,8 @@ function Coordinator() {
                         <div className="notification-type-icon">
                           {notification.notification_type === 'new_job' ? '📄'
                             : notification.notification_type === 'approval' ? '✅'
-                            : notification.notification_type === 'rejection' ? '❌'
-                            : '🔔'}
+                              : notification.notification_type === 'rejection' ? '❌'
+                                : '🔔'}
                         </div>
                         <div className="notification-content">
                           <div className="notification-message">{notification.message}</div>
@@ -416,7 +393,7 @@ function Coordinator() {
                     </div>
                   )}
                 </div>
-                
+
                 {notifications.length > 0 && (
                   <div className="notifications-footer">
                     <button className="mark-all-read" onClick={markAllAsRead}>
@@ -429,14 +406,24 @@ function Coordinator() {
 
             {/* User Dropdown */}
             <div className="user-info" onClick={() => setShowUserDropdown(!showUserDropdown)}>
-              <div>{user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : user.username}</div>
+              <div>
+                {user.coordinatorName || user.username}
+                {user.coordinatorDepartment && (
+                  <div style={{ fontSize: '12px', color: '#ccc' }}>
+                    {user.coordinatorDepartment}
+                  </div>
+                )}
+              </div>
               <div className="user-avatar">
                 {getInitials()}
               </div>
               {showUserDropdown && (
                 <div className="user-dropdown active">
                   <div className="user-dropdown-item">
-                    <i className="fas fa-user-circle"></i> Coordinator Profile
+                    <i className="fas fa-user-circle"></i> {user.coordinatorName || 'Coordinator'}
+                  </div>
+                  <div className="user-dropdown-item">
+                    <i className="fas fa-building"></i> {user.coordinatorDepartment || 'Department'}
                   </div>
                   <div className="user-dropdown-item">
                     <i className="fas fa-cog"></i> Settings
@@ -462,11 +449,11 @@ function Coordinator() {
               <h1 className="dashboard-title">Job Listings Management</h1>
               <p className="dashboard-subtitle">Review and manage all job postings</p>
             </div>
-            <div className="coordinator-actions">
+            <div className="admin-actions">
               <span className="last-updated">Last updated: {new Date().toLocaleTimeString()}</span>
             </div>
           </div>
-          
+
           {/* Stats */}
           <div className="stats-container">
             <div className="stat-card">
@@ -488,7 +475,7 @@ function Coordinator() {
           </div>
 
           {/* Search and Filters */}
-          <div className="coordinator-controls">
+          <div className="admin-controls">
             <div className="search-box">
               <i className="fas fa-search"></i>
               <input
@@ -499,10 +486,10 @@ function Coordinator() {
                 className="search-input"
               />
             </div>
-            
+
             <div className="filter-controls">
-              <select 
-                value={statusFilter} 
+              <select
+                value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="status-filter"
               >
@@ -511,15 +498,15 @@ function Coordinator() {
                 <option value="approved">Approved</option>
                 <option value="rejected">Rejected</option>
               </select>
-              
+
               <div className="results-count">
                 {filteredJobs.length} job(s) found
               </div>
             </div>
           </div>
-          
+
           <div className="divider"></div>
-          
+
           {/* Jobs Table */}
           <div className="jobs-table-container">
             <table className="jobs-table">
@@ -538,11 +525,11 @@ function Coordinator() {
               <tbody>
                 {filteredJobs.length > 0 ? (
                   filteredJobs.map(job => (
-                    <tr key={job.id} className="job-row">
+                    <tr key={job.listingID} className="job-row">
                       <td>
                         <div className="job-title-cell">
                           <strong>{job.title}</strong>
-                          <button 
+                          <button
                             className="view-details-btn"
                             onClick={() => viewJobDetails(job)}
                             title="View full details"
@@ -551,7 +538,7 @@ function Coordinator() {
                           </button>
                         </div>
                       </td>
-                      <td>{job.company || 'N/A'}</td>
+                      <td>{job.company?.companyName || 'N/A'}</td>
                       <td>
                         <div className="location-cell">
                           <i className="fas fa-map-marker-alt"></i>
@@ -572,18 +559,20 @@ function Coordinator() {
                         <div className="action-buttons">
                           {job.status === 'pending' && (
                             <>
-                              <button 
+                              <button
                                 className="btn-approve"
-                                onClick={() => approveJob(job.id)}
+                                onClick={() => approveJob(job.listingID)}
                                 title="Approve job listing"
+                                disabled={loading}
                               >
                                 <i className="fas fa-check"></i>
                                 Approve
                               </button>
-                              <button 
+                              <button
                                 className="btn-reject"
                                 onClick={() => openRejectModal(job)}
                                 title="Reject job listing"
+                                disabled={loading}
                               >
                                 <i className="fas fa-times"></i>
                                 Reject
@@ -613,7 +602,7 @@ function Coordinator() {
             </table>
           </div>
         </main>
-        
+
         {/* Footer */}
         <footer>
           <div className="footer-content">
@@ -621,7 +610,7 @@ function Coordinator() {
               <h3>HIREarchy Coordinator</h3>
               <p>Coordinator dashboard for reviewing and managing job listings from companies.</p>
             </div>
-            
+
             <div className="footer-section">
               <h3>Quick Actions</h3>
               <ul className="footer-links">
@@ -631,7 +620,7 @@ function Coordinator() {
                 <li><a href="#">Settings</a></li>
               </ul>
             </div>
-            
+
             <div className="footer-section">
               <h3>Support</h3>
               <ul className="footer-links">
@@ -641,7 +630,7 @@ function Coordinator() {
                 <li><a href="#">System Status</a></li>
               </ul>
             </div>
-            
+
             <div className="footer-section">
               <h3>Contact</h3>
               <div className="contact-info">
@@ -657,7 +646,7 @@ function Coordinator() {
               </div>
             </div>
           </div>
-          
+
           <div className="copyright">
             © 2025 HIREarchy Coordinator Panel. All rights reserved.
           </div>
@@ -667,14 +656,14 @@ function Coordinator() {
       {/* Job Details Modal */}
       {showJobModal && selectedJob && (
         <div className="modal-overlay active">
-          <div className="modal coordinator-modal">
+          <div className="modal admin-modal">
             <div className="modal-header">
               <h2 className="modal-title">Job Listing Details</h2>
               <button type="button" className="close-modal" onClick={() => setShowJobModal(false)}>
                 <i className="fas fa-times"></i>
               </button>
             </div>
-            
+
             <div className="modal-body">
               <div className="job-details-grid">
                 <div className="detail-section">
@@ -685,7 +674,7 @@ function Coordinator() {
                   </div>
                   <div className="detail-row">
                     <label>Company:</label>
-                    <span>{selectedJob.company || 'Not specified'}</span>
+                    <span>{selectedJob.company?.companyName || 'Not specified'}</span>
                   </div>
                   <div className="detail-row">
                     <label>Location:</label>
@@ -738,17 +727,17 @@ function Coordinator() {
                 </div>
 
                 <div className="detail-section full-width">
-                  <h3>Target Departments</h3>
+                  <h3>Targeted Programs</h3>
                   <div className="departments-list">
-                    {getDepartmentsList(selectedJob)}
+                    {selectedJob.courses?.join(', ') || 'No specific programs targeted'}
                   </div>
                 </div>
 
-                {selectedJob.status === 'rejected' && selectedJob.rejection_reason && (
+                {selectedJob.status === 'rejected' && selectedJob.rejectionReason && (
                   <div className="detail-section full-width">
                     <h3>Rejection Reason</h3>
                     <div className="rejection-reason">
-                      {selectedJob.rejection_reason}
+                      {selectedJob.rejectionReason}
                     </div>
                   </div>
                 )}
@@ -756,10 +745,14 @@ function Coordinator() {
                 {selectedJob.status === 'pending' && (
                   <div className="detail-section full-width">
                     <h3>Coordinator Actions</h3>
-                    <div className="coordinator-action-buttons">
-                      <button 
+                    <div className="admin-action-buttons">
+                      <button
                         className="btn-approve-large"
-                        onClick={() => approveJob(selectedJob.id)}
+                        onClick={() => {
+                          approveJob(selectedJob.listingID);
+                          setShowJobModal(false);
+                        }}
+                        disabled={loading}
                       >
                         <i className="fas fa-check"></i>
                         Approve Job Listing
@@ -773,9 +766,10 @@ function Coordinator() {
                           rows="3"
                           className="rejection-textarea"
                         />
-                        <button 
+                        <button
                           className="btn-reject-large"
-                          onClick={() => rejectJob(selectedJob.id, rejectionReason)}
+                          onClick={() => rejectJob(selectedJob.listingID, rejectionReason)}
+                          disabled={loading}
                         >
                           <i className="fas fa-times"></i>
                           Reject Job Listing
@@ -788,7 +782,7 @@ function Coordinator() {
             </div>
           </div>
         </div>
-      )}    
+      )}
     </div>
   );
 }

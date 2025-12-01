@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 
+
+
 // CIT-U Courses Constants
 const CIT_U_COURSES = {
   CEA: [
@@ -49,18 +51,19 @@ const CIT_U_COURSES = {
 };
 
 // Flattened course list for dropdowns
-const ALL_COURSES = Object.values(CIT_U_COURSES).flat();
+//const ALL_COURSES = Object.values(CIT_U_COURSES).flat();
 
 function App() {
-  // State management - UPDATED
+  // State management
   const [user, setUser] = useState({
     username: '',
-    company_name: '',
-    contact_person: '',
+    companyName: '',
+    contactPerson: '',
     email: '',
-    id: null
+    id: null,
+    companyID: null
   });
-  
+
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [jobs, setJobs] = useState([]);
@@ -68,18 +71,23 @@ function App() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [editingJobId, setEditingJobId] = useState(null);
+  const [showApplicationsModal, setShowApplicationsModal] = useState(false);
+  const [selectedJobApplications, setSelectedJobApplications] = useState([]);
+  const [selectedJobForApplications, setSelectedJobForApplications] = useState(null);
+  const [showApplicationDetailsModal, setShowApplicationDetailsModal] = useState(false);
+  const [selectedApplication, setSelectedApplication] = useState(null);
+  const [applicationFeedback, setApplicationFeedback] = useState('');
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     location: '',
     modality: '',
     requirements: '',
-    postDate: '',
+    postDate: new Date().toISOString().split('T')[0],
     duration: '',
     deadline: '',
     salary: '',
-    // CHANGED: Now using array for selected courses
-    selectedCourses: [] // Array to store selected course names
+    selectedCourses: []
   });
   const [activeFilter, setActiveFilter] = useState('all');
   const [activeDepartmentGroups, setActiveDepartmentGroups] = useState({
@@ -90,6 +98,7 @@ function App() {
     cnahs: true,
     ccj: true
   });
+  const [loading, setLoading] = useState(false);
 
   // Stats
   const totalJobs = jobs.length;
@@ -106,63 +115,59 @@ function App() {
     return true;
   });
 
-  // ADDED: Function to fetch company data with useCallback
+  // Fetch company data
   const fetchCompanyData = useCallback(async () => {
     try {
-      // Get user data from localStorage (set during login)
       const savedUser = localStorage.getItem('user');
       if (savedUser) {
         const userData = JSON.parse(savedUser);
-        console.log('Using user data from localStorage:', userData);
-        
-        // If we have a company ID, fetch the full company details
-        setUser({
-        username: userData.username || 'Username',
-        company_name: userData.companyName || userData.company_name || 'Company Name',
-        contact_person: userData.contactPerson || userData.contact_person || 'Contact Person',
-        email: userData.email || 'Email',
-        id: userData.id
-      });
-    }
-  } catch (error) {
-    console.error('Error setting user data:', error);
-  }
-}, []);
+        console.log('Company user data:', userData);
 
-  // UPDATED: fetchJobs with useCallback
+        setUser({
+          username: userData.username || '',
+          companyName: userData.companyName || '',
+          contactPerson: userData.contactPerson || '',
+          email: userData.email || '',
+          id: userData.id,
+          companyID: userData.companyID || userData.id
+        });
+      }
+    } catch (error) {
+      console.error('Error setting company data:', error);
+    }
+  }, []);
+
+  // Fetch jobs for company
   const fetchJobs = useCallback(async () => {
     try {
-      const companyId = user?.id;
-      
+      const companyId = user?.companyID || user?.id;
+
       if (!companyId) {
-        console.log('No company ID found, skipping job fetch');
+        console.log('No company ID found');
         return;
       }
-      
-      console.log('Fetching jobs for company:', companyId);
-      
+
+      console.log('Fetching jobs for company ID:', companyId);
+
       const response = await fetch(`http://localhost:8080/api/listings/company/${companyId}`);
-      
+
       if (response.ok) {
         const data = await response.json();
         console.log('Jobs fetched:', data);
-        console.log('Number of jobs:', data.length);
-        console.log('Job IDs:', data.map(job => job.listingID));
         setJobs(data);
       } else {
-        console.error('Failed to fetch jobs, status:', response.status);
+        console.error('Failed to fetch jobs:', response.status);
         setJobs([]);
       }
     } catch (error) {
       console.error('Error fetching jobs:', error);
       setJobs([]);
     }
-  }, [user?.id]);
+  }, [user?.companyID, user?.id]);
 
-  // UPDATED: fetchNotifications with useCallback
+  // Fetch notifications
   const fetchNotifications = useCallback(async () => {
     try {
-      // For now, use mock notifications since you don't have a notifications API
       const mockNotifications = [
         {
           id: 1,
@@ -180,7 +185,7 @@ function App() {
         }
       ];
       setNotifications(mockNotifications);
-      setUnreadCount(1); // One unread notification
+      setUnreadCount(1);
     } catch (error) {
       console.error('Error fetching notifications:', error);
       setNotifications([]);
@@ -188,53 +193,71 @@ function App() {
     }
   }, []);
 
-  // Fetch initial data - FIXED with dependencies
+  // Fetch initial data
   useEffect(() => {
     fetchCompanyData();
-    fetchJobs();
-    fetchNotifications();
-  }, [fetchCompanyData, fetchJobs, fetchNotifications]);
+  }, [fetchCompanyData]);
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchJobs();
+      fetchNotifications();
+    }
+  }, [user?.id, fetchJobs, fetchNotifications]);
 
   // Modal handlers
-  const openModal = () => setShowModal(true);
-  const closeModal = () => {
-    setShowModal(false);
-    setEditingJobId(null); // Reset editing state
+  const openModal = () => {
     setFormData({
       title: '',
       description: '',
       location: '',
       modality: '',
       requirements: '',
-      postDate: '',
+      postDate: new Date().toISOString().split('T')[0],
       duration: '',
       deadline: '',
       salary: '',
-      selectedCourses: [] // Reset selected courses
+      selectedCourses: []
+    });
+    setEditingJobId(null);
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingJobId(null);
+    setFormData({
+      title: '',
+      description: '',
+      location: '',
+      modality: '',
+      requirements: '',
+      postDate: new Date().toISOString().split('T')[0],
+      duration: '',
+      deadline: '',
+      salary: '',
+      selectedCourses: []
     });
   };
 
-  // CHANGED: Form handlers for course selection
+  // Form handlers
   const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target;
+    const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: value
     }));
   };
 
-  // NEW: Handle course selection
   const handleCourseSelection = (course) => {
     setFormData(prev => {
       const isSelected = prev.selectedCourses.includes(course);
       if (isSelected) {
-        // Remove course if already selected
         return {
           ...prev,
           selectedCourses: prev.selectedCourses.filter(c => c !== course)
         };
       } else {
-        // Add course if not selected
         return {
           ...prev,
           selectedCourses: [...prev.selectedCourses, course]
@@ -243,9 +266,77 @@ function App() {
     });
   };
 
-  // NEW: Select all courses in a department
+  const viewJobApplications = async (job) => {
+    try {
+      setSelectedJobForApplications(job);
+
+      // Fetch applications for this job
+      const response = await fetch(`http://localhost:8080/api/applications/listing/${job.listingID}`);
+
+      if (response.ok) {
+        const applications = await response.json();
+        setSelectedJobApplications(applications);
+        setShowApplicationsModal(true);
+      } else {
+        showNotification('Failed to fetch applications', 'error');
+      }
+    } catch (error) {
+      console.error('Error fetching applications:', error);
+      showNotification('Error fetching applications', 'error');
+    }
+  };
+
+  const viewApplicationDetails = (application) => {
+    setSelectedApplication(application);
+    setApplicationFeedback(application.feedback || '');
+    setShowApplicationDetailsModal(true);
+  };
+
+  const updateApplicationStatus = async (status) => {
+    if (!selectedApplication) return;
+
+    try {
+      const response = await fetch(`http://localhost:8080/api/applications/${selectedApplication.applicationID}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: status,
+          feedback: applicationFeedback
+        })
+      });
+
+      if (response.ok) {
+        const updatedApplication = await response.json();
+
+        // Update in local state
+        setJobs(prev => prev.map(job => {
+          if (job.listingID === selectedJobForApplications?.listingID && job.applications) {
+            return {
+              ...job,
+              applications: job.applications.map(app =>
+                app.applicationID === selectedApplication.applicationID
+                  ? updatedApplication
+                  : app
+              )
+            };
+          }
+          return job;
+        }));
+
+        showNotification(`Application ${status.toLowerCase()} successfully`, 'success');
+        setShowApplicationDetailsModal(false);
+      } else {
+        showNotification('Failed to update application status', 'error');
+      }
+    } catch (error) {
+      console.error('Error updating application:', error);
+      showNotification('Error updating application', 'error');
+    }
+  };
   const selectAllCoursesInDepartment = (department) => {
-    const departmentCourses = CIT_U_COURSES[department.toUpperCase()] || [];
+    const departmentCourses = CIT_U_COURSES[department] || [];
     setFormData(prev => {
       const currentCourses = new Set(prev.selectedCourses);
       departmentCourses.forEach(course => currentCourses.add(course));
@@ -256,51 +347,50 @@ function App() {
     });
   };
 
-  // NEW: Deselect all courses in a department
   const deselectAllCoursesInDepartment = (department) => {
-    const departmentCourses = CIT_U_COURSES[department.toUpperCase()] || [];
+    const departmentCourses = CIT_U_COURSES[department] || [];
     setFormData(prev => ({
       ...prev,
       selectedCourses: prev.selectedCourses.filter(course => !departmentCourses.includes(course))
     }));
   };
 
-  // UPDATED: handleSubmit to include courses array
+  // Handle job submission
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+    setLoading(true);
+
     try {
-      // Get company ID from user data
-      const companyId = user?.id;
-      
+      const companyId = user?.companyID || user?.id;
+
       if (!companyId) {
         showNotification('Company information not found. Please log in again.', 'error');
+        setLoading(false);
         return;
       }
 
-      // UPDATED: Include courses array in job data
+      // Prepare job data according to your backend entity
       const jobData = {
         title: formData.title,
         description: formData.description,
         location: formData.location,
         modality: formData.modality,
         requirements: formData.requirements,
-        postDate: formData.postDate || new Date().toISOString().split('T')[0],
+        postDate: formData.postDate,
         duration: formData.duration,
         deadline: formData.deadline,
         salary: parseFloat(formData.salary),
         status: "pending",
-        courses: formData.selectedCourses // CHANGED: Send courses array
+        courses: formData.selectedCourses,
+        company: { id: companyId }
       };
 
-      console.log('Job data to save:', jobData);
+      console.log('Submitting job data:', jobData);
 
       let response;
-      let savedJob;
-      
+
       if (editingJobId) {
-        // UPDATE existing job
-        console.log('Updating job ID:', editingJobId);
+        // Update existing job
         response = await fetch(`http://localhost:8080/api/listings/${editingJobId}`, {
           method: 'PUT',
           headers: {
@@ -308,78 +398,64 @@ function App() {
           },
           body: JSON.stringify(jobData)
         });
-        
+
         if (response.ok) {
-          savedJob = await response.json();
-          console.log('Job updated successfully:', savedJob);
-          
-          // UPDATE LOCAL STATE - MAKE SURE TO KEEP THE ID
-          setJobs(prev => prev.map(job => {
-            if (job.listingID === editingJobId) {
-              return {
-                ...savedJob, // Use the returned job data
-                listingID: editingJobId // Keep the original ID
-              };
-            }
-            return job;
-          }));
-          
+          const savedJob = await response.json();
+          setJobs(prev => prev.map(job =>
+            job.listingID === editingJobId ? savedJob : job
+          ));
           closeModal();
           showNotification('Job listing updated successfully!', 'success');
         } else {
           const errorText = await response.text();
-          console.error('Server error:', errorText);
-          showNotification('Error updating job listing: ' + errorText, 'error');
+          showNotification(`Error updating job: ${errorText}`, 'error');
         }
       } else {
-        // CREATE new job - include company for creation only
-        console.log('Creating new job');
-        const createData = {
-          ...jobData,
-          company: { id: companyId } // Only include company for creation
-        };
+        // Create new job
         response = await fetch('http://localhost:8080/api/listings', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(createData)
+          body: JSON.stringify(jobData)
         });
-        
+
         if (response.ok) {
-          savedJob = await response.json();
-          console.log('Job created successfully:', savedJob);
-          
-          // ADD TO LOCAL STATE
+          const savedJob = await response.json();
           setJobs(prev => [...prev, savedJob]);
-          
           closeModal();
           showNotification('Job listing created successfully!', 'success');
         } else {
           const errorText = await response.text();
-          console.error('Server error:', errorText);
-          showNotification('Error creating job listing: ' + errorText, 'error');
+          showNotification(`Error creating job: ${errorText}`, 'error');
         }
       }
     } catch (error) {
       console.error('Error saving job:', error);
-      showNotification(`Error ${editingJobId ? 'updating' : 'creating'} job listing: ` + error.message, 'error');
+      showNotification(`Error saving job: ${error.message}`, 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Replace the deleteJob function
+  // Delete job
   const deleteJob = async (jobId) => {
     if (window.confirm('Are you sure you want to delete this job listing?')) {
       try {
         const response = await fetch(`http://localhost:8080/api/listings/${jobId}`, {
           method: 'DELETE'
         });
-        
+
         if (response.ok) {
           setJobs(prev => prev.filter(j => j.listingID !== jobId));
           showNotification('Job listing deleted successfully', 'success');
+        } else if (response.status === 404) {
+          // If not found on server, remove from local state anyway
+          setJobs(prev => prev.filter(j => j.listingID !== jobId));
+          showNotification('Job listing removed', 'info');
         } else {
-          showNotification('Error deleting job listing', 'error');
+          const errorText = await response.text();
+          showNotification(`Error: ${errorText}`, 'error');
         }
       } catch (error) {
         console.error('Error deleting job:', error);
@@ -388,7 +464,7 @@ function App() {
     }
   };
 
-  // UPDATED: editJob to handle courses array
+  // Edit job
   const editJob = (job) => {
     setFormData({
       title: job.title || '',
@@ -396,62 +472,38 @@ function App() {
       location: job.location || '',
       modality: job.modality || '',
       requirements: job.requirements || '',
-      postDate: job.postDate || '',
+      postDate: job.postDate || new Date().toISOString().split('T')[0],
       duration: job.duration || '',
       deadline: job.deadline || '',
       salary: job.salary || '',
-      selectedCourses: job.courses || [] // CHANGED: Set selected courses from job data
+      selectedCourses: job.courses || []
     });
-    setEditingJobId(job.listingID || job.id);
+    setEditingJobId(job.listingID);
     setShowModal(true);
   };
 
   // Notification handlers
   const markAsRead = async (notificationId) => {
-    try {
-      await fetch(`/api/notifications/${notificationId}/read`, {
-        method: 'POST'
-      });
-      setNotifications(prev => 
-        prev.map(n => 
-          n.id === notificationId ? { ...n, is_read: true } : n
-        )
-      );
-      setUnreadCount(prev => prev - 1);
-    } catch (error) {
-      console.error('Error marking notification as read:', error);
-    }
+    setNotifications(prev =>
+      prev.map(n =>
+        n.id === notificationId ? { ...n, is_read: true } : n
+      )
+    );
+    setUnreadCount(prev => prev - 1);
   };
 
   const markAllAsRead = async () => {
-    try {
-      await fetch('/api/notifications/mark-all-read', {
-        method: 'POST'
-      });
-      setNotifications(prev => 
-        prev.map(n => ({ ...n, is_read: true }))
-      );
-      setUnreadCount(0);
-    } catch (error) {
-      console.error('Error marking all as read:', error);
-    }
+    setNotifications(prev =>
+      prev.map(n => ({ ...n, is_read: true }))
+    );
+    setUnreadCount(0);
   };
 
-  // ADD LOGOUT FUNCTION
+  // Logout
   const handleLogout = () => {
-    // Clear local storage
-    localStorage.removeItem('user');
-    localStorage.removeItem('role');
-    localStorage.removeItem('userType');
-    localStorage.removeItem('token');
-    
-    // Clear session storage
+    localStorage.clear();
     sessionStorage.clear();
-    
-    // Show logout notification
     showNotification('Logged out successfully', 'success');
-    
-    // Redirect to login page after a short delay
     setTimeout(() => {
       window.location.href = '/login';
     }, 1000);
@@ -459,26 +511,24 @@ function App() {
 
   // Utility functions
   const showNotification = (message, type) => {
-    // Implement your notification system here
-    console.log(`${type}: ${message}`);
+    alert(`${type.toUpperCase()}: ${message}`);
   };
 
-  // UPDATED: getInitials to use contact person name
   const getInitials = () => {
-    if (user.contact_person && user.contact_person.trim()) {
-      const names = user.contact_person.split(' ');
+    if (user.contactPerson && user.contactPerson.trim()) {
+      const names = user.contactPerson.split(' ');
       if (names.length >= 2) {
         return `${names[0][0]}${names[1][0]}`.toUpperCase();
       }
-      return user.contact_person[0].toUpperCase();
+      return user.contactPerson[0].toUpperCase();
     }
-    if (user.company_name && user.company_name.trim()) {
-      return user.company_name[0].toUpperCase();
+    if (user.companyName && user.companyName.trim()) {
+      return user.companyName[0].toUpperCase();
     }
     if (user.username && user.username.trim()) {
       return user.username[0].toUpperCase();
     }
-    return 'C'; // Default fallback
+    return 'C';
   };
 
   const toggleDepartmentGroup = (group) => {
@@ -492,10 +542,11 @@ function App() {
     return new Intl.NumberFormat('en-PH', {
       style: 'currency',
       currency: 'PHP'
-    }).format(salary);
+    }).format(salary || 0);
   };
 
   const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
@@ -503,17 +554,25 @@ function App() {
     });
   };
 
-  // NEW: Check if all courses in department are selected
   const isAllCoursesSelected = (department) => {
-    const departmentCourses = CIT_U_COURSES[department.toUpperCase()] || [];
-    return departmentCourses.length > 0 && 
-           departmentCourses.every(course => formData.selectedCourses.includes(course));
+    const departmentCourses = CIT_U_COURSES[department] || [];
+    return departmentCourses.length > 0 &&
+      departmentCourses.every(course => formData.selectedCourses.includes(course));
   };
 
-  // NEW: Check if any course in department is selected
-  const isAnyCourseSelected = (department) => {
-    const departmentCourses = CIT_U_COURSES[department.toUpperCase()] || [];
-    return departmentCourses.some(course => formData.selectedCourses.includes(course));
+  // const isAnyCourseSelected = (department) => {
+  //   const departmentCourses = CIT_U_COURSES[department] || [];
+  //   return departmentCourses.some(course => formData.selectedCourses.includes(course));
+  // };
+
+  // Get status badge class
+  const getStatusBadgeClass = (status) => {
+    switch (status) {
+      case 'approved': return 'active';
+      case 'pending': return 'draft';
+      case 'rejected': return 'closed';
+      default: return 'draft';
+    }
   };
 
   return (
@@ -538,7 +597,7 @@ function App() {
                   <h3>Notifications</h3>
                   {unreadCount > 0 && <span className="unread-count">{unreadCount} unread</span>}
                 </div>
-                
+
                 <div className="notifications-list">
                   {notifications.length > 0 ? (
                     notifications.map(notification => (
@@ -546,8 +605,8 @@ function App() {
                         <div className="notification-type-icon">
                           {notification.notification_type === 'application' ? '📄'
                             : notification.notification_type === 'approval' ? '✅'
-                            : notification.notification_type === 'rejection' ? '❌'
-                            : '🔔'}
+                              : notification.notification_type === 'rejection' ? '❌'
+                                : '🔔'}
                         </div>
                         <div className="notification-content">
                           <div className="notification-message">{notification.message}</div>
@@ -566,7 +625,7 @@ function App() {
                     </div>
                   )}
                 </div>
-                
+
                 {notifications.length > 0 && (
                   <div className="notifications-footer">
                     <button className="mark-all-read" onClick={markAllAsRead}>
@@ -577,13 +636,13 @@ function App() {
               </div>
             )}
 
-            {/* User Dropdown - UPDATED */}
+            {/* User Dropdown */}
             <div className="user-info" onClick={() => setShowUserDropdown(!showUserDropdown)}>
               <div>
-                {user.contact_person || user.company_name || user.username || 'User'}
-                {user.company_name && user.company_name !== (user.contact_person || user.username) && (
+                {user.contactPerson || user.companyName || user.username || 'User'}
+                {user.companyName && user.companyName !== (user.contactPerson || user.username) && (
                   <div style={{ fontSize: '12px', color: '#ccc' }}>
-                    {user.company_name}
+                    {user.companyName}
                   </div>
                 )}
               </div>
@@ -593,10 +652,10 @@ function App() {
               {showUserDropdown && (
                 <div className="user-dropdown active">
                   <div className="user-dropdown-item">
-                    <i className="fas fa-building"></i> {user.company_name || 'Company'}
+                    <i className="fas fa-building"></i> {user.companyName || 'Company'}
                   </div>
                   <div className="user-dropdown-item">
-                    <i className="fas fa-user"></i> {user.contact_person || 'Contact Person'}
+                    <i className="fas fa-user"></i> {user.contactPerson || 'Contact Person'}
                   </div>
                   <div className="user-dropdown-item">
                     <i className="fas fa-envelope"></i> {user.email || 'Email'}
@@ -633,7 +692,7 @@ function App() {
               </div>
             </div>
           </div>
-          
+
           {/* Stats */}
           <div className="stats-container">
             <div className="stat-card">
@@ -653,46 +712,46 @@ function App() {
               <div className="stat-label">Rejected</div>
             </div>
           </div>
-          
+
           {/* Filters */}
           <div className="filter-section">
-            <div 
+            <div
               className={`filter-item ${activeFilter === 'all' ? 'active' : ''}`}
               onClick={() => setActiveFilter('all')}
             >
               All ({totalJobs})
             </div>
-            <div 
+            <div
               className={`filter-item ${activeFilter === 'approved' ? 'active' : ''}`}
               onClick={() => setActiveFilter('approved')}
             >
               Approved ({approvedJobs})
             </div>
-            <div 
+            <div
               className={`filter-item ${activeFilter === 'pending' ? 'active' : ''}`}
               onClick={() => setActiveFilter('pending')}
             >
               Pending ({pendingJobs})
             </div>
-            <div 
+            <div
               className={`filter-item ${activeFilter === 'rejected' ? 'active' : ''}`}
               onClick={() => setActiveFilter('rejected')}
             >
               Rejected ({rejectedJobs})
             </div>
           </div>
-          
+
           <div className="divider"></div>
-          
+
           {/* Jobs Grid */}
           <div className="properties-container">
             {filteredJobs.length > 0 ? (
               filteredJobs.map(job => (
-                <div key={job.listingID || job.id} className="property-card" data-status={job.status}>
+                <div key={job.listingID} className="property-card">
                   <div className="property-content">
                     <div className="job-header">
                       <h3 className="property-title">{job.title}</h3>
-                      <div className={`property-status-badge ${job.status}`}>
+                      <div className={`property-status-badge ${getStatusBadgeClass(job.status)}`}>
                         {job.status}
                       </div>
                     </div>
@@ -700,26 +759,42 @@ function App() {
                       <i className="fas fa-map-marker-alt"></i> {job.location} • {job.modality}
                     </div>
                     <div className="property-details">
-                      <span>Posted: {formatDate(job.postDate)}</span> • 
-                      <span> Deadline: {formatDate(job.deadline)}</span> • 
+                      <span>Posted: {formatDate(job.postDate)}</span> •
+                      <span> Deadline: {formatDate(job.deadline)}</span> •
                       <span> Duration: {job.duration}</span>
                     </div>
-                    {/* NEW: Display targeted courses */}
+
+                    {/* Applications count */}
+                    <div className="applications-count">
+                      <i className="fas fa-users"></i>
+                      <strong>{job.applications?.length || 0}</strong> Applications
+                      {job.applications?.length > 0 && (
+                        <span className="pending-count">
+                          ({job.applications.filter(app => app.status === 'PENDING').length} pending)
+                        </span>
+                      )}
+                    </div>
+
                     {job.courses && job.courses.length > 0 && (
                       <div className="targeted-courses">
                         <strong>Targeted Courses:</strong> {job.courses.join(', ')}
                       </div>
                     )}
                     <div className="job-description">
-                      {job.description}
+                      {job.description && job.description.length > 100
+                        ? `${job.description.substring(0, 100)}...`
+                        : job.description}
                     </div>
                     <div className="property-price">{formatSalary(job.salary)}<span className="price-period">/month</span></div>
-                    
+
                     <div className="property-actions">
+                      <button className="btn-view" onClick={() => viewJobApplications(job)}>
+                        <i className="fas fa-eye"></i> View Applications
+                      </button>
                       <button className="btn-edit" onClick={() => editJob(job)}>
                         <i className="fas fa-edit"></i> Edit
                       </button>
-                      <button className="btn-delete" onClick={() => deleteJob(job.listingID || job.id)}>
+                      <button className="btn-delete" onClick={() => deleteJob(job.listingID)}>
                         <i className="fas fa-trash"></i> Delete
                       </button>
                     </div>
@@ -733,7 +808,7 @@ function App() {
             )}
           </div>
         </main>
-        
+
         {/* Footer */}
         <footer>
           <div className="footer-content">
@@ -741,7 +816,7 @@ function App() {
               <h3>HIREarchy</h3>
               <p>Your trusted platform for connecting companies with qualified candidates from top educational institutions.</p>
             </div>
-            
+
             <div className="footer-section">
               <h3>Quick Links</h3>
               <ul className="footer-links">
@@ -751,7 +826,7 @@ function App() {
                 <li><a href="/faq">FAQs</a></li>
               </ul>
             </div>
-            
+
             <div className="footer-section">
               <h3>Legal</h3>
               <ul className="footer-links">
@@ -761,7 +836,7 @@ function App() {
                 <li><a href="/guidelines">Recruitment Guidelines</a></li>
               </ul>
             </div>
-            
+
             <div className="footer-section">
               <h3>Contact Us</h3>
               <div className="contact-info">
@@ -777,14 +852,14 @@ function App() {
               </div>
             </div>
           </div>
-          
+
           <div className="copyright">
             © 2025 HIREarchy. All rights reserved.
           </div>
         </footer>
       </div>
 
-      {/* Modal */}
+      {/* Job Modal */}
       {showModal && (
         <div className="modal-overlay active">
           <div className="modal">
@@ -797,14 +872,14 @@ function App() {
                   <i className="fas fa-times"></i>
                 </button>
               </div>
-              
+
               <div className="modal-body">
                 <div className="modal-subtitle">Fill in the details below to create a new job listing</div>
 
                 {/* Job Details */}
                 <div className="form-section">
                   <h3 className="section-title">Job Details</h3>
-                  
+
                   <div className="form-group">
                     <label className="form-label">Job Title</label>
                     <input
@@ -817,7 +892,7 @@ function App() {
                       required
                     />
                   </div>
-                  
+
                   <div className="form-group">
                     <label className="form-label">Job Description</label>
                     <textarea
@@ -844,7 +919,7 @@ function App() {
                         required
                       />
                     </div>
-                    
+
                     <div className="form-group half-width">
                       <label className="form-label">Work Modality</label>
                       <select
@@ -874,7 +949,7 @@ function App() {
                         required
                       />
                     </div>
-                    
+
                     <div className="form-group half-width">
                       <label className="form-label">Application Deadline</label>
                       <input
@@ -905,7 +980,7 @@ function App() {
                         <option value="Internship">Internship</option>
                       </select>
                     </div>
-                    
+
                     <div className="form-group half-width">
                       <label className="form-label">Monthly Salary (₱)</label>
                       <input
@@ -916,6 +991,8 @@ function App() {
                         className="form-input"
                         placeholder="e.g., 50000"
                         required
+                        min="0"
+                        step="1000"
                       />
                     </div>
                   </div>
@@ -933,8 +1010,8 @@ function App() {
                     />
                   </div>
                 </div>
-                
-                {/* Target Departments & Programs - UPDATED */}
+
+                {/* Target Departments & Programs */}
                 <div className="amenities-section">
                   <h3 className="section-title">Target Departments & Programs</h3>
                   <div className="selected-courses-preview">
@@ -944,7 +1021,7 @@ function App() {
                         {formData.selectedCourses.map(course => (
                           <span key={course} className="selected-course-tag">
                             {course}
-                            <button 
+                            <button
                               type="button"
                               onClick={() => handleCourseSelection(course)}
                               className="remove-course-btn"
@@ -958,278 +1035,236 @@ function App() {
                       <span style={{ color: '#999', fontStyle: 'italic' }}>No courses selected</span>
                     )}
                   </div>
-                  
-                  {/* College of Engineering and Architecture (CEA) */}
-                  <div className={`amenity-group ${activeDepartmentGroups.cea ? 'active' : ''}`}>
-                    <div className="amenity-header" onClick={() => toggleDepartmentGroup('cea')}>
-                      <div className="amenity-title">
-                        <i className="fas fa-cogs amenity-icon"></i>
-                        <span>College of Engineering and Architecture (CEA)</span>
-                      </div>
-                      <div className="department-actions">
-                        <button 
-                          type="button"
-                          className="select-all-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (isAllCoursesSelected('CEA')) {
-                              deselectAllCoursesInDepartment('CEA');
-                            } else {
-                              selectAllCoursesInDepartment('CEA');
-                            }
-                          }}
-                        >
-                          {isAllCoursesSelected('CEA') ? 'Deselect All' : 'Select All'}
-                        </button>
-                        <i className={`fas fa-chevron-down amenity-chevron ${activeDepartmentGroups.cea ? 'rotated' : ''}`}></i>
-                      </div>
-                    </div>
-                    <div className="amenity-content">
-                      <div className="amenity-grid">
-                        {CIT_U_COURSES.CEA.map(course => (
-                          <div key={course} className="amenity-item">
-                            <input
-                              type="checkbox"
-                              id={course.replace(/\s+/g, '_')}
-                              checked={formData.selectedCourses.includes(course)}
-                              onChange={() => handleCourseSelection(course)}
-                              className="amenity-checkbox"
-                            />
-                            <label htmlFor={course.replace(/\s+/g, '_')} className="amenity-label">
-                              {course}
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* College of Computer Studies (CCS) */}
-                  <div className={`amenity-group ${activeDepartmentGroups.ccs ? 'active' : ''}`}>
-                    <div className="amenity-header" onClick={() => toggleDepartmentGroup('ccs')}>
-                      <div className="amenity-title">
-                        <i className="fas fa-laptop-code amenity-icon"></i>
-                        <span>College of Computer Studies (CCS)</span>
-                      </div>
-                      <div className="department-actions">
-                        <button 
-                          type="button"
-                          className="select-all-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (isAllCoursesSelected('CCS')) {
-                              deselectAllCoursesInDepartment('CCS');
-                            } else {
-                              selectAllCoursesInDepartment('CCS');
-                            }
-                          }}
-                        >
-                          {isAllCoursesSelected('CCS') ? 'Deselect All' : 'Select All'}
-                        </button>
-                        <i className={`fas fa-chevron-down amenity-chevron ${activeDepartmentGroups.ccs ? 'rotated' : ''}`}></i>
-                      </div>
-                    </div>
-                    <div className="amenity-content">
-                      <div className="amenity-grid">
-                        {CIT_U_COURSES.CCS.map(course => (
-                          <div key={course} className="amenity-item">
-                            <input
-                              type="checkbox"
-                              id={course.replace(/\s+/g, '_')}
-                              checked={formData.selectedCourses.includes(course)}
-                              onChange={() => handleCourseSelection(course)}
-                              className="amenity-checkbox"
-                            />
-                            <label htmlFor={course.replace(/\s+/g, '_')} className="amenity-label">
-                              {course}
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* College of Arts, Sciences, and Education (CASE) */}
-                  <div className={`amenity-group ${activeDepartmentGroups.case ? 'active' : ''}`}>
-                    <div className="amenity-header" onClick={() => toggleDepartmentGroup('case')}>
-                      <div className="amenity-title">
-                        <i className="fas fa-palette amenity-icon"></i>
-                        <span>College of Arts, Sciences, and Education (CASE)</span>
+                  {Object.keys(CIT_U_COURSES).map(department => (
+                    <div key={department} className={`amenity-group ${activeDepartmentGroups[department.toLowerCase()] ? 'active' : ''}`}>
+                      <div className="amenity-header" onClick={() => toggleDepartmentGroup(department.toLowerCase())}>
+                        <div className="amenity-title">
+                          <i className={`fas fa-${department === 'CEA' ? 'cogs' :
+                            department === 'CCS' ? 'laptop-code' :
+                              department === 'CASE' ? 'palette' :
+                                department === 'CMBA' ? 'chart-line' :
+                                  department === 'CNAHS' ? 'heartbeat' :
+                                    'shield-alt'
+                            } amenity-icon`}></i>
+                          <span>{department} - {{
+                            'CEA': 'College of Engineering and Architecture',
+                            'CCS': 'College of Computer Studies',
+                            'CASE': 'College of Arts, Sciences, and Education',
+                            'CMBA': 'College of Management, Business and Accountancy',
+                            'CNAHS': 'College of Nursing and Allied Health Sciences',
+                            'CCJ': 'College of Criminal Justice'
+                          }[department]}</span>
+                        </div>
+                        <div className="department-actions">
+                          <button
+                            type="button"
+                            className="select-all-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isAllCoursesSelected(department)) {
+                                deselectAllCoursesInDepartment(department);
+                              } else {
+                                selectAllCoursesInDepartment(department);
+                              }
+                            }}
+                          >
+                            {isAllCoursesSelected(department) ? 'Deselect All' : 'Select All'}
+                          </button>
+                          <i className={`fas fa-chevron-down amenity-chevron ${activeDepartmentGroups[department.toLowerCase()] ? 'rotated' : ''}`}></i>
+                        </div>
                       </div>
-                      <div className="department-actions">
-                        <button 
-                          type="button"
-                          className="select-all-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (isAllCoursesSelected('CASE')) {
-                              deselectAllCoursesInDepartment('CASE');
-                            } else {
-                              selectAllCoursesInDepartment('CASE');
-                            }
-                          }}
-                        >
-                          {isAllCoursesSelected('CASE') ? 'Deselect All' : 'Select All'}
-                        </button>
-                        <i className={`fas fa-chevron-down amenity-chevron ${activeDepartmentGroups.case ? 'rotated' : ''}`}></i>
-                      </div>
-                    </div>
-                    <div className="amenity-content">
-                      <div className="amenity-grid">
-                        {CIT_U_COURSES.CASE.map(course => (
-                          <div key={course} className="amenity-item">
-                            <input
-                              type="checkbox"
-                              id={course.replace(/\s+/g, '_')}
-                              checked={formData.selectedCourses.includes(course)}
-                              onChange={() => handleCourseSelection(course)}
-                              className="amenity-checkbox"
-                            />
-                            <label htmlFor={course.replace(/\s+/g, '_')} className="amenity-label">
-                              {course}
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* College of Management, Business and Accountancy (CMBA) */}
-                  <div className={`amenity-group ${activeDepartmentGroups.cmba ? 'active' : ''}`}>
-                    <div className="amenity-header" onClick={() => toggleDepartmentGroup('cmba')}>
-                      <div className="amenity-title">
-                        <i className="fas fa-chart-line amenity-icon"></i>
-                        <span>College of Management, Business and Accountancy (CMBA)</span>
-                      </div>
-                      <div className="department-actions">
-                        <button 
-                          type="button"
-                          className="select-all-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (isAllCoursesSelected('CMBA')) {
-                              deselectAllCoursesInDepartment('CMBA');
-                            } else {
-                              selectAllCoursesInDepartment('CMBA');
-                            }
-                          }}
-                        >
-                          {isAllCoursesSelected('CMBA') ? 'Deselect All' : 'Select All'}
-                        </button>
-                        <i className={`fas fa-chevron-down amenity-chevron ${activeDepartmentGroups.cmba ? 'rotated' : ''}`}></i>
+                      <div className="amenity-content">
+                        <div className="amenity-grid">
+                          {CIT_U_COURSES[department].map(course => (
+                            <div key={course} className="amenity-item">
+                              <input
+                                type="checkbox"
+                                id={course.replace(/\s+/g, '_')}
+                                checked={formData.selectedCourses.includes(course)}
+                                onChange={() => handleCourseSelection(course)}
+                                className="amenity-checkbox"
+                              />
+                              <label htmlFor={course.replace(/\s+/g, '_')} className="amenity-label">
+                                {course}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                    <div className="amenity-content">
-                      <div className="amenity-grid">
-                        {CIT_U_COURSES.CMBA.map(course => (
-                          <div key={course} className="amenity-item">
-                            <input
-                              type="checkbox"
-                              id={course.replace(/\s+/g, '_')}
-                              checked={formData.selectedCourses.includes(course)}
-                              onChange={() => handleCourseSelection(course)}
-                              className="amenity-checkbox"
-                            />
-                            <label htmlFor={course.replace(/\s+/g, '_')} className="amenity-label">
-                              {course}
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* College of Nursing and Allied Health Sciences (CNAHS) */}
-                  <div className={`amenity-group ${activeDepartmentGroups.cnahs ? 'active' : ''}`}>
-                    <div className="amenity-header" onClick={() => toggleDepartmentGroup('cnahs')}>
-                      <div className="amenity-title">
-                        <i className="fas fa-heartbeat amenity-icon"></i>
-                        <span>College of Nursing and Allied Health Sciences (CNAHS)</span>
-                      </div>
-                      <div className="department-actions">
-                        <button 
-                          type="button"
-                          className="select-all-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (isAllCoursesSelected('CNAHS')) {
-                              deselectAllCoursesInDepartment('CNAHS');
-                            } else {
-                              selectAllCoursesInDepartment('CNAHS');
-                            }
-                          }}
-                        >
-                          {isAllCoursesSelected('CNAHS') ? 'Deselect All' : 'Select All'}
-                        </button>
-                        <i className={`fas fa-chevron-down amenity-chevron ${activeDepartmentGroups.cnahs ? 'rotated' : ''}`}></i>
-                      </div>
-                    </div>
-                    <div className="amenity-content">
-                      <div className="amenity-item">
-                        <input
-                          type="checkbox"
-                          id="nursing"
-                          checked={formData.selectedCourses.includes('Nursing')}
-                          onChange={() => handleCourseSelection('Nursing')}
-                          className="amenity-checkbox"
-                        />
-                        <label htmlFor="nursing" className="amenity-label">
-                          Nursing
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* College of Criminal Justice (CCJ) */}
-                  <div className={`amenity-group ${activeDepartmentGroups.ccj ? 'active' : ''}`}>
-                    <div className="amenity-header" onClick={() => toggleDepartmentGroup('ccj')}>
-                      <div className="amenity-title">
-                        <i className="fas fa-shield-alt amenity-icon"></i>
-                        <span>College of Criminal Justice (CCJ)</span>
-                      </div>
-                      <div className="department-actions">
-                        <button 
-                          type="button"
-                          className="select-all-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (isAllCoursesSelected('CCJ')) {
-                              deselectAllCoursesInDepartment('CCJ');
-                            } else {
-                              selectAllCoursesInDepartment('CCJ');
-                            }
-                          }}
-                        >
-                          {isAllCoursesSelected('CCJ') ? 'Deselect All' : 'Select All'}
-                        </button>
-                        <i className={`fas fa-chevron-down amenity-chevron ${activeDepartmentGroups.ccj ? 'rotated' : ''}`}></i>
-                      </div>
-                    </div>
-                    <div className="amenity-content">
-                      <div className="amenity-item">
-                        <input
-                          type="checkbox"
-                          id="criminology"
-                          checked={formData.selectedCourses.includes('Criminology')}
-                          onChange={() => handleCourseSelection('Criminology')}
-                          className="amenity-checkbox"
-                        />
-                        <label htmlFor="criminology" className="amenity-label">
-                          Criminology
-                        </label>
-                      </div>
-                    </div>
-                  </div>
+                  ))}
                 </div>
-                        
+
                 <div className="modal-footer">
-                  <button type="button" className="btn btn-secondary" onClick={closeModal}>Cancel</button>
-                  <button type="submit" className="btn btn-primary">
-                    {editingJobId ? 'Update Job Listing' : 'Create Job Listing'}
+                  <button type="button" className="btn btn-secondary" onClick={closeModal} disabled={loading}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-primary" disabled={loading}>
+                    {loading ? 'Saving...' : editingJobId ? 'Update Job Listing' : 'Create Job Listing'}
                   </button>
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Applications Modal */}
+      {showApplicationsModal && selectedJobForApplications && (
+        <div className="modal-overlay active">
+          <div className="modal" style={{ maxWidth: '1000px' }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Applications for {selectedJobForApplications.title}</h2>
+              <button type="button" className="close-modal" onClick={() => setShowApplicationsModal(false)}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div className="modal-subtitle">
+                Total: {selectedJobApplications.length} applications •
+                Pending: {selectedJobApplications.filter(app => app.status === 'PENDING').length}
+              </div>
+
+              <table className="applications-table">
+                <thead>
+                  <tr>
+                    <th>Student Name</th>
+                    <th>Program</th>
+                    <th>Applied Date</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedJobApplications.length > 0 ? (
+                    selectedJobApplications.map(application => (
+                      <tr key={application.applicationID}>
+                        <td>{application.student?.studName || 'N/A'}</td>
+                        <td>{application.student?.course || 'N/A'}</td>
+                        <td>{formatDate(application.applyDate)}</td>
+                        <td>
+                          <span className={`application-status status-${application.status?.toLowerCase()}`}>
+                            {application.status}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="application-actions">
+                            <button
+                              className="btn-review"
+                              onClick={() => viewApplicationDetails(application)}
+                            >
+                              <i className="fas fa-eye"></i> Review
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="5" style={{ textAlign: 'center', padding: '40px' }}>
+                        <p>No applications yet for this job listing.</p>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowApplicationsModal(false)}>
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Application Details Modal */}
+      {showApplicationDetailsModal && selectedApplication && (
+        <div className="modal-overlay active">
+          <div className="modal" style={{ maxWidth: '800px' }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Review Application</h2>
+              <button type="button" className="close-modal" onClick={() => setShowApplicationDetailsModal(false)}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div className="application-details">
+                <div className="student-info">
+                  <div className="info-item">
+                    <strong>Student Name:</strong><br />
+                    {selectedApplication.student?.studName || 'N/A'}
+                  </div>
+                  <div className="info-item">
+                    <strong>Program:</strong><br />
+                    {selectedApplication.student?.course || 'N/A'}
+                  </div>
+                  <div className="info-item">
+                    <strong>Year Level:</strong><br />
+                    {selectedApplication.student?.studYrLevel || 'N/A'}
+                  </div>
+                  <div className="info-item">
+                    <strong>Email:</strong><br />
+                    {selectedApplication.student?.email || 'N/A'}
+                  </div>
+                </div>
+
+                <div className="info-item">
+                  <strong>Applied Date:</strong><br />
+                  {formatDate(selectedApplication.applyDate)}
+                </div>
+
+                <div className="info-item">
+                  <strong>Resume:</strong><br />
+                  {selectedApplication.resumeURL ? (
+                    <a href={selectedApplication.resumeURL} target="_blank" rel="noopener noreferrer">
+                      <i className="fas fa-file-pdf"></i> View Resume
+                    </a>
+                  ) : 'No resume provided'}
+                </div>
+
+                <div className="cover-letter">
+                  <strong>Cover Letter:</strong><br />
+                  {selectedApplication.coverLetter || 'No cover letter provided'}
+                </div>
+
+                <div className="feedback-section">
+                  <label className="form-label">Feedback (optional):</label>
+                  <textarea
+                    value={applicationFeedback}
+                    onChange={(e) => setApplicationFeedback(e.target.value)}
+                    className="feedback-textarea"
+                    placeholder="Provide feedback for the applicant..."
+                    rows="4"
+                  />
+                </div>
+
+                <div className="application-decision-buttons">
+                  <button
+                    className="btn-accept"
+                    onClick={() => updateApplicationStatus('APPROVED')}
+                  >
+                    <i className="fas fa-check"></i> Accept Application
+                  </button>
+                  <button
+                    className="btn-reject-app"
+                    onClick={() => updateApplicationStatus('REJECTED')}
+                  >
+                    <i className="fas fa-times"></i> Reject Application
+                  </button>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowApplicationDetailsModal(false)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -4,43 +4,43 @@ import './login.css';
 
 // CIT-U Courses Constants
 const CIT_U_COURSES = [
-  // CEA
-  'BS Architecture',
-  'BS Chemical Engineering',
-  'BS Civil Engineering',
-  'BS Computer Engineering',
-  'BS Electrical Engineering',
-  'BS Electronics Engineering',
-  'BS Industrial Engineering',
-  'BS Mechanical Engineering',
-  'BS Mining Engineering',
-  // CMBA
-  'BS Accountancy',
-  'BS Accounting Information Systems',
-  'BS Management Accounting',
-  'BS Business Administration',
-  'BS Hospitality Management',
-  'BS Tourism Management',
-  'BS Office Administration',
-  'Bachelor in Public Administration',
-  // CASE
-  'AB Communication',
-  'AB English with Applied Linguistics',
-  'Bachelor of Elementary Education',
-  'Bachelor of Secondary Education',
-  'Bachelor of Multimedia Arts',
-  'BS Biology',
-  'BS Math with Applied Industrial Mathematics',
-  'BS Psychology',
-  // CNAHS
-  'BS Nursing',
-  'BS Pharmacy',
-  'BS Medical Technology',
-  // CCS
-  'BS Information Technology',
-  'BS Computer Science',
-  // CCJ
-  'BS Criminology'
+    // CEA
+    'BS Architecture',
+    'BS Chemical Engineering',
+    'BS Civil Engineering',
+    'BS Computer Engineering',
+    'BS Electrical Engineering',
+    'BS Electronics Engineering',
+    'BS Industrial Engineering',
+    'BS Mechanical Engineering',
+    'BS Mining Engineering',
+    // CMBA
+    'BS Accountancy',
+    'BS Accounting Information Systems',
+    'BS Management Accounting',
+    'BS Business Administration',
+    'BS Hospitality Management',
+    'BS Tourism Management',
+    'BS Office Administration',
+    'Bachelor in Public Administration',
+    // CASE
+    'AB Communication',
+    'AB English with Applied Linguistics',
+    'Bachelor of Elementary Education',
+    'Bachelor of Secondary Education',
+    'Bachelor of Multimedia Arts',
+    'BS Biology',
+    'BS Math with Applied Industrial Mathematics',
+    'BS Psychology',
+    // CNAHS
+    'BS Nursing',
+    'BS Pharmacy',
+    'BS Medical Technology',
+    // CCS
+    'BS Information Technology',
+    'BS Computer Science',
+    // CCJ
+    'BS Criminology'
 ];
 
 const Login = ({ onLogin }) => {
@@ -51,28 +51,29 @@ const Login = ({ onLogin }) => {
         email: '',
         role: '25-103', // Default to student
         companyName: '',
-        firstName: '',
-        lastName: '',
-        studentId: '',
-        department: '',
+        coordinatorName: '',
+        coordinatorDepartment: '',
+        studName: '',
+        studYrLevel: '',
         contactPerson: '',
         contactPhone: '',
-        program: '', // CHANGED: Now using string for program
-        yearLevel: ''
+        course: '',
     });
 
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
-        
+        setError('');
+
         try {
             if (isLogin) {
                 // Login logic
                 const response = await fetch('http://localhost:8080/api/auth/login', {
                     method: 'POST',
-                    headers: { 
+                    headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
@@ -80,30 +81,73 @@ const Login = ({ onLogin }) => {
                         password: formData.password
                     })
                 });
-                
+
+                console.log('Response status:', response.status);
+
                 if (response.ok) {
-                    const data = await response.json();
-                    localStorage.setItem('user', JSON.stringify(data.user));
-                    localStorage.setItem('role', data.role);
-                    localStorage.setItem('userType', data.userType);
-                    onLogin(data.role, data.user, data.userType);
+                    try {
+                        const text = await response.text();
+                        console.log('Raw response:', text);
+                        const data = JSON.parse(text);
+                        console.log('Login response:', data);
+
+                        // Extract user data based on role
+                        let userData = {};
+                        let userRole = data.role || '25-103';
+
+                        if (userRole === '25-101') { // Coordinator
+                            userData = {
+                                id: data.id || data.user?.id,
+                                username: data.username || data.user?.username,
+                                email: data.email || data.user?.email,
+                                coordinatorName: data.coordinatorName || data.user?.coordinatorName,
+                                coordinatorDepartment: data.coordinatorDepartment || data.user?.coordinatorDepartment
+                            };
+                        } else if (userRole === '25-102') { // Company
+                            userData = {
+                                id: data.id || data.user?.id,
+                                username: data.username || data.user?.username,
+                                email: data.email || data.user?.email,
+                                companyName: data.companyName || data.user?.companyName,
+                                contactPerson: data.contactPerson || data.user?.contactPerson,
+                                contactPhone: data.contactPhone || data.user?.contactPhone,
+                                companyID: data.companyID || data.id
+                            };
+                        } else if (userRole === '25-103') { // Student
+                            userData = {
+                                id: data.id || data.user?.id,
+                                username: data.username || data.user?.username,
+                                email: data.email || data.user?.email,
+                                studName: data.studName || data.user?.studName,
+                                studYrLevel: data.studYrLevel || data.user?.studYrLevel,
+                                course: data.course || data.user?.course || data.user?.studProgram,
+                                studID: data.studID || data.id
+                            };
+                        }
+
+                        onLogin(userRole, userData);
+                    } catch (parseError) {
+                        console.error('JSON parse error:', parseError);
+                        setError('Invalid response from server');
+                    }
                 } else {
-                    const error = await response.text();
-                    alert(error);
+                    const errorText = await response.text();
+                    console.error('Server error:', errorText);
+                    setError(errorText || 'Invalid username or password');
                 }
             } else {
-                // Registration logic
+                // Registration logic - same as before
                 let endpoint = '';
                 let userData = {};
 
-                switch(formData.role) {
+                switch (formData.role) {
                     case '25-101': // Coordinator
                         endpoint = '/register/coordinator';
                         userData = {
                             username: formData.username,
                             email: formData.email,
-                            coordinatorName: `${formData.firstName} ${formData.lastName}`,
-                            coordinatorDepartment: formData.department
+                            coordinatorName: formData.coordinatorName,
+                            coordinatorDepartment: formData.coordinatorDepartment
                         };
                         break;
                     case '25-102': // Company
@@ -112,7 +156,6 @@ const Login = ({ onLogin }) => {
                             username: formData.username,
                             email: formData.email,
                             companyName: formData.companyName,
-                            companyDescription: '',
                             contactPerson: formData.contactPerson,
                             contactPhone: formData.contactPhone
                         };
@@ -122,49 +165,59 @@ const Login = ({ onLogin }) => {
                         userData = {
                             username: formData.username,
                             email: formData.email,
-                            studName: `${formData.firstName} ${formData.lastName}`,
-                            studProgram: formData.program, // CHANGED: Now using string
-                            studYrLevel: formData.yearLevel,
-                            course: formData.program // NEW: Add course field for backend
+                            studName: formData.studName,
+                            studYrLevel: formData.studYrLevel,
+                            course: formData.course
                         };
                         break;
                 }
-                
+
+                console.log('Registering:', { endpoint, userData });
+
                 const response = await fetch(`http://localhost:8080/api/auth${endpoint}?password=${formData.password}`, {
                     method: 'POST',
-                    headers: { 
+                    headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify(userData)
                 });
-                
+
+                console.log('Registration response status:', response.status);
+
                 if (response.ok) {
-                    alert('Registration successful! Please login.');
-                    setIsLogin(true);
-                    // Reset form
-                    setFormData({
-                        username: '',
-                        password: '',
-                        email: '',
-                        role: '25-103',
-                        companyName: '',
-                        firstName: '',
-                        lastName: '',
-                        studentId: '',
-                        department: '',
-                        contactPerson: '',
-                        contactPhone: '',
-                        program: '',
-                        yearLevel: ''
-                    });
+                    try {
+                        const savedUser = await response.json();
+                        console.log('Registration successful:', savedUser);
+                        alert('Registration successful! Please login.');
+                        setIsLogin(true);
+                        // Reset form
+                        setFormData({
+                            username: '',
+                            password: '',
+                            email: '',
+                            role: '25-103',
+                            companyName: '',
+                            coordinatorName: '',
+                            coordinatorDepartment: '',
+                            studName: '',
+                            studYrLevel: '',
+                            contactPerson: '',
+                            contactPhone: '',
+                            course: '',
+                        });
+                    } catch (parseError) {
+                        console.error('Registration parse error:', parseError);
+                        setError('Registration successful but server response was invalid');
+                    }
                 } else {
-                    const error = await response.text();
-                    alert(error);
+                    const errorText = await response.text();
+                    console.error('Registration error:', errorText);
+                    setError(errorText || 'Registration failed');
                 }
             }
         } catch (error) {
             console.error('Authentication error:', error);
-            alert('An error occurred. Please try again.');
+            setError('An error occurred. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -178,31 +231,23 @@ const Login = ({ onLogin }) => {
     };
 
     const renderRegistrationFields = () => {
-        switch(formData.role) {
+        switch (formData.role) {
             case '25-101': // Coordinator
                 return (
                     <>
                         <input
                             type="text"
-                            name="firstName"
-                            placeholder="First Name"
-                            value={formData.firstName}
+                            name="coordinatorName"
+                            placeholder="Coordinator Name"
+                            value={formData.coordinatorName}
                             onChange={handleChange}
                             required
                         />
                         <input
                             type="text"
-                            name="lastName"
-                            placeholder="Last Name"
-                            value={formData.lastName}
-                            onChange={handleChange}
-                            required
-                        />
-                        <input
-                            type="text"
-                            name="department"
+                            name="coordinatorDepartment"
                             placeholder="Department"
-                            value={formData.department}
+                            value={formData.coordinatorDepartment}
                             onChange={handleChange}
                             required
                         />
@@ -233,7 +278,6 @@ const Login = ({ onLogin }) => {
                             placeholder="Contact Phone"
                             value={formData.contactPhone}
                             onChange={handleChange}
-                            required
                         />
                     </>
                 );
@@ -242,24 +286,15 @@ const Login = ({ onLogin }) => {
                     <>
                         <input
                             type="text"
-                            name="firstName"
-                            placeholder="First Name"
-                            value={formData.firstName}
+                            name="studName"
+                            placeholder="Full Name"
+                            value={formData.studName}
                             onChange={handleChange}
                             required
                         />
-                        <input
-                            type="text"
-                            name="lastName"
-                            placeholder="Last Name"
-                            value={formData.lastName}
-                            onChange={handleChange}
-                            required
-                        />
-                        {/* CHANGED: Program as dropdown */}
                         <select
-                            name="program"
-                            value={formData.program}
+                            name="course"
+                            value={formData.course}
                             onChange={handleChange}
                             required
                         >
@@ -272,9 +307,9 @@ const Login = ({ onLogin }) => {
                         </select>
                         <input
                             type="text"
-                            name="yearLevel"
+                            name="studYrLevel"
                             placeholder="Year Level"
-                            value={formData.yearLevel}
+                            value={formData.studYrLevel}
                             onChange={handleChange}
                             required
                         />
@@ -289,6 +324,7 @@ const Login = ({ onLogin }) => {
         <div className="login-container">
             <div className="login-form">
                 <h2>{isLogin ? 'Login' : 'Register'}</h2>
+                {error && <div style={{ color: 'red', marginBottom: '10px' }}>{error}</div>}
                 <form onSubmit={handleSubmit}>
                     {!isLogin && (
                         <>
@@ -297,7 +333,7 @@ const Login = ({ onLogin }) => {
                                 <option value="25-102">Company</option>
                                 <option value="25-101">Coordinator</option>
                             </select>
-                            
+
                             <input
                                 type="email"
                                 name="email"
@@ -306,11 +342,11 @@ const Login = ({ onLogin }) => {
                                 onChange={handleChange}
                                 required
                             />
-                            
+
                             {renderRegistrationFields()}
                         </>
                     )}
-                    
+
                     <input
                         type="text"
                         name="username"
@@ -327,13 +363,16 @@ const Login = ({ onLogin }) => {
                         onChange={handleChange}
                         required
                     />
-                    
+
                     <button type="submit" disabled={loading}>
                         {loading ? 'Processing...' : (isLogin ? 'Login' : 'Register')}
                     </button>
                 </form>
-                
-                <p onClick={() => setIsLogin(!isLogin)} className="toggle-link">
+
+                <p onClick={() => {
+                    setIsLogin(!isLogin);
+                    setError('');
+                }} className="toggle-link">
                     {isLogin ? "Need an account? Register" : "Have an account? Login"}
                 </p>
             </div>
