@@ -63,7 +63,8 @@ function App() {
     id: null,
     companyID: null
   });
-
+  const [selectedDepartment, setSelectedDepartment] = useState('');
+  const [filteredCourses, setFilteredCourses] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [jobs, setJobs] = useState([]);
@@ -226,6 +227,8 @@ function App() {
   const closeModal = () => {
     setShowModal(false);
     setEditingJobId(null);
+    setSelectedDepartment('');
+    setFilteredCourses([]);
     setFormData({
       title: '',
       description: '',
@@ -358,6 +361,21 @@ function App() {
   // Handle job submission
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Validate department and courses
+    if (!selectedDepartment) {
+      showNotification('Please select a department', 'error');
+      return;
+    }
+
+    const selectedCoursesInDept = formData.selectedCourses.filter(course =>
+      filteredCourses.includes(course)
+    );
+
+    if (selectedCoursesInDept.length === 0) {
+      showNotification(`Please select at least one program from ${selectedDepartment} department`, 'error');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -466,6 +484,21 @@ function App() {
 
   // Edit job
   const editJob = (job) => {
+    // Determine department from first selected course
+    let dept = '';
+    if (job.courses && job.courses.length > 0) {
+      // Find which department the first course belongs to
+      for (const [department, courses] of Object.entries(CIT_U_COURSES)) {
+        if (courses.includes(job.courses[0])) {
+          dept = department;
+          break;
+        }
+      }
+    }
+
+    setSelectedDepartment(dept);
+    setFilteredCourses(dept ? CIT_U_COURSES[dept] || [] : []);
+
     setFormData({
       title: job.title || '',
       description: job.description || '',
@@ -478,6 +511,7 @@ function App() {
       salary: job.salary || '',
       selectedCourses: job.courses || []
     });
+
     setEditingJobId(job.listingID);
     setShowModal(true);
   };
@@ -1011,90 +1045,229 @@ function App() {
                   </div>
                 </div>
 
-                {/* Target Departments & Programs */}
-                <div className="amenities-section">
-                  <h3 className="section-title">Target Departments & Programs</h3>
-                  <div className="selected-courses-preview">
-                    <strong>Selected Courses ({formData.selectedCourses.length}):</strong>
-                    {formData.selectedCourses.length > 0 ? (
-                      <div className="selected-courses-list">
-                        {formData.selectedCourses.map(course => (
-                          <span key={course} className="selected-course-tag">
-                            {course}
-                            <button
-                              type="button"
-                              onClick={() => handleCourseSelection(course)}
-                              className="remove-course-btn"
-                            >
-                              ×
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span style={{ color: '#999', fontStyle: 'italic' }}>No courses selected</span>
-                    )}
-                  </div>
-
-                  {Object.keys(CIT_U_COURSES).map(department => (
-                    <div key={department} className={`amenity-group ${activeDepartmentGroups[department.toLowerCase()] ? 'active' : ''}`}>
-                      <div className="amenity-header" onClick={() => toggleDepartmentGroup(department.toLowerCase())}>
-                        <div className="amenity-title">
-                          <i className={`fas fa-${department === 'CEA' ? 'cogs' :
-                            department === 'CCS' ? 'laptop-code' :
-                              department === 'CASE' ? 'palette' :
-                                department === 'CMBA' ? 'chart-line' :
-                                  department === 'CNAHS' ? 'heartbeat' :
-                                    'shield-alt'
-                            } amenity-icon`}></i>
-                          <span>{department} - {{
+                {/* Department Selection */}
+                <div className="form-section">
+                  <h3 className="section-title">Target Department</h3>
+                  <div className="form-group">
+                    <label className="form-label">Select Department</label>
+                    <select
+                      value={selectedDepartment}
+                      onChange={(e) => {
+                        const dept = e.target.value;
+                        setSelectedDepartment(dept);
+                        setFilteredCourses(dept ? CIT_U_COURSES[dept] || [] : []);
+                        // Clear previously selected courses when department changes
+                        setFormData(prev => ({
+                          ...prev,
+                          selectedCourses: []
+                        }));
+                      }}
+                      className="form-input"
+                      required
+                    >
+                      <option value="">-- Select a Department --</option>
+                      {Object.keys(CIT_U_COURSES).map(dept => (
+                        <option key={dept} value={dept}>
+                          {dept} - {{
                             'CEA': 'College of Engineering and Architecture',
                             'CCS': 'College of Computer Studies',
                             'CASE': 'College of Arts, Sciences, and Education',
                             'CMBA': 'College of Management, Business and Accountancy',
                             'CNAHS': 'College of Nursing and Allied Health Sciences',
                             'CCJ': 'College of Criminal Justice'
-                          }[department]}</span>
-                        </div>
-                        <div className="department-actions">
-                          <button
-                            type="button"
-                            className="select-all-btn"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (isAllCoursesSelected(department)) {
-                                deselectAllCoursesInDepartment(department);
-                              } else {
-                                selectAllCoursesInDepartment(department);
-                              }
-                            }}
-                          >
-                            {isAllCoursesSelected(department) ? 'Deselect All' : 'Select All'}
-                          </button>
-                          <i className={`fas fa-chevron-down amenity-chevron ${activeDepartmentGroups[department.toLowerCase()] ? 'rotated' : ''}`}></i>
-                        </div>
-                      </div>
-                      <div className="amenity-content">
-                        <div className="amenity-grid">
-                          {CIT_U_COURSES[department].map(course => (
-                            <div key={course} className="amenity-item">
-                              <input
-                                type="checkbox"
-                                id={course.replace(/\s+/g, '_')}
-                                checked={formData.selectedCourses.includes(course)}
-                                onChange={() => handleCourseSelection(course)}
-                                className="amenity-checkbox"
-                              />
-                              <label htmlFor={course.replace(/\s+/g, '_')} className="amenity-label">
-                                {course}
-                              </label>
-                            </div>
+                          }[dept]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Courses Selection (only shows when department is selected) */}
+                {selectedDepartment && (
+                  <div className="form-section">
+                    <h3 className="section-title">
+                      Select Programs in {selectedDepartment}
+                      <span style={{ fontSize: '14px', color: '#666', marginLeft: '10px' }}>
+                        (Select one or more)
+                      </span>
+                    </h3>
+
+                    {/* Department info */}
+                    <div className="department-info" style={{
+                      background: '#f8f9fa',
+                      padding: '10px',
+                      borderRadius: '5px',
+                      marginBottom: '15px'
+                    }}>
+                      <strong>Department:</strong> {selectedDepartment} - {
+                        {
+                          'CEA': 'College of Engineering and Architecture',
+                          'CCS': 'College of Computer Studies',
+                          'CASE': 'College of Arts, Sciences, and Education',
+                          'CMBA': 'College of Management, Business and Accountancy',
+                          'CNAHS': 'College of Nursing and Allied Health Sciences',
+                          'CCJ': 'College of Criminal Justice'
+                        }[selectedDepartment]
+                      }
+                    </div>
+
+                    {/* Course Selection Controls */}
+                    <div className="course-selection-controls" style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      marginBottom: '10px'
+                    }}>
+                      <button
+                        type="button"
+                        className="btn-select-all"
+                        onClick={() => {
+                          setFormData(prev => ({
+                            ...prev,
+                            selectedCourses: [...new Set([...prev.selectedCourses, ...filteredCourses])]
+                          }));
+                        }}
+                        style={{
+                          background: '#4CAF50',
+                          color: 'white',
+                          border: 'none',
+                          padding: '5px 10px',
+                          borderRadius: '3px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Select All
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-clear-all"
+                        onClick={() => {
+                          setFormData(prev => ({
+                            ...prev,
+                            selectedCourses: prev.selectedCourses.filter(course =>
+                              !filteredCourses.includes(course)
+                            )
+                          }));
+                        }}
+                        style={{
+                          background: '#f44336',
+                          color: 'white',
+                          border: 'none',
+                          padding: '5px 10px',
+                          borderRadius: '3px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Clear All
+                      </button>
+                    </div>
+
+                    {/* Selected Courses Preview */}
+                    <div className="selected-courses-preview" style={{
+                      background: '#e8f5e8',
+                      padding: '10px',
+                      borderRadius: '5px',
+                      marginBottom: '15px'
+                    }}>
+                      <strong>Selected ({formData.selectedCourses.filter(course =>
+                        filteredCourses.includes(course)
+                      ).length}):</strong>
+                      {formData.selectedCourses.filter(course =>
+                        filteredCourses.includes(course)
+                      ).length > 0 ? (
+                        <div style={{ marginTop: '5px' }}>
+                          {formData.selectedCourses.filter(course =>
+                            filteredCourses.includes(course)
+                          ).map(course => (
+                            <span key={course} style={{
+                              background: '#4CAF50',
+                              color: 'white',
+                              padding: '2px 8px',
+                              borderRadius: '3px',
+                              margin: '2px',
+                              display: 'inline-block',
+                              fontSize: '12px'
+                            }}>
+                              {course}
+                              <button
+                                type="button"
+                                onClick={() => handleCourseSelection(course)}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: 'white',
+                                  marginLeft: '5px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                ×
+                              </button>
+                            </span>
                           ))}
                         </div>
-                      </div>
+                      ) : (
+                        <span style={{ color: '#999', fontStyle: 'italic', marginLeft: '10px' }}>
+                          No courses selected
+                        </span>
+                      )}
                     </div>
-                  ))}
-                </div>
+
+                    {/* Courses Grid */}
+                    <div className="courses-grid" style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+                      gap: '10px',
+                      maxHeight: '300px',
+                      overflowY: 'auto',
+                      padding: '10px',
+                      border: '1px solid #ddd',
+                      borderRadius: '5px'
+                    }}>
+                      {filteredCourses.map(course => (
+                        <div key={course} className="course-item" style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '8px',
+                          background: formData.selectedCourses.includes(course) ? '#e8f5e8' : '#fff',
+                          border: `1px solid ${formData.selectedCourses.includes(course) ? '#4CAF50' : '#ddd'}`,
+                          borderRadius: '4px',
+                          cursor: 'pointer'
+                        }}>
+                          <input
+                            type="checkbox"
+                            id={`course-${course.replace(/\s+/g, '-')}`}
+                            checked={formData.selectedCourses.includes(course)}
+                            onChange={() => handleCourseSelection(course)}
+                            style={{ marginRight: '10px' }}
+                          />
+                          <label
+                            htmlFor={`course-${course.replace(/\s+/g, '-')}`}
+                            style={{
+                              cursor: 'pointer',
+                              flex: 1,
+                              color: formData.selectedCourses.includes(course) ? '#2e7d32' : '#333'
+                            }}
+                          >
+                            {course}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Validation Message */}
+                    {formData.selectedCourses.filter(course =>
+                      filteredCourses.includes(course)
+                    ).length === 0 && selectedDepartment && (
+                        <div style={{
+                          color: '#f44336',
+                          fontSize: '14px',
+                          marginTop: '10px',
+                          fontStyle: 'italic'
+                        }}>
+                          Please select at least one program from this department
+                        </div>
+                      )}
+                  </div>
+                )}
 
                 <div className="modal-footer">
                   <button type="button" className="btn btn-secondary" onClick={closeModal} disabled={loading}>

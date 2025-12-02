@@ -126,16 +126,37 @@ function Student() {
         // Get the student's application IDs
         const studentApplicationIds = applications.map(app =>
           app.internshipListing?.listingID
-        ).filter(id => id); // Remove undefined/null
+        ).filter(id => id);
 
         console.log('Student has applied to job IDs:', studentApplicationIds);
 
+        // DEBUG: Check each listing individually
+        console.log('=== DEBUGGING EACH LISTING ===');
+        allListings.forEach((listing, index) => {
+          const status = listing.status || 'pending';
+          const isApproved = status.toLowerCase() === 'approved';
+
+          const listingCourses = listing.courses || [];
+          const matchesCourse = listingCourses.includes(student.course);
+
+          const notApplied = !studentApplicationIds.includes(listing.listingID);
+
+          console.log(`Listing ${index + 1} (ID: ${listing.listingID}):`, {
+            title: listing.title,
+            status: listing.status,
+            isApproved: isApproved,
+            courses: listingCourses,
+            studentCourse: student.course,
+            matchesCourse: matchesCourse,
+            alreadyApplied: !notApplied,
+            shouldShow: isApproved && matchesCourse && notApplied
+          });
+        });
+
         // Filter listings:
-        // 1. Must be approved
-        // 2. Must match student's course
-        // 3. Student must NOT have already applied
         const filteredListings = allListings.filter(listing => {
-          const isApproved = listing.status === 'approved';
+          const status = listing.status || 'pending';
+          const isApproved = status.toLowerCase() === 'approved';
           const matchesCourse = listing.courses && listing.courses.includes(student.course);
           const notApplied = !studentApplicationIds.includes(listing.listingID);
 
@@ -152,7 +173,7 @@ function Student() {
       console.error('Error fetching job listings:', error);
       setJobListings([]);
     }
-  }, [student.course, applications]); // Add applications to dependencies
+  }, [student.course, applications]);
 
   // Fetch applications
   const fetchApplications = useCallback(async () => {
