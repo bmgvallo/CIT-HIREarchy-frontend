@@ -1244,4 +1244,66 @@ textarea.form-input {
         gap: 8px;
         flex: 1;
     }
+
+    /* Resume Link Styling */
+    .resume-link {
+        color: #2196f3;
+        text-decoration: none;
+        word-break: break-all;
+        display: inline-block;
+        margin-top: 5px;
+        padding: 5px 10px;
+        background: #f5f5f5;
+        border-radius: 4px;
+        border: 1px solid #ddd;
+    }
+
+    .resume-link:hover {
+        background: #e3f2fd;
+        text-decoration: underline;
+    }
+
+    .resume-link i {
+        margin-right: 8px;
+        color: #f44336;
+    }
+
+    /* Cover Letter Styling */
+    .cover-letter-content {
+        margin-top: 10px;
+        padding: 15px;
+        background: #f9f9f9;
+        border-radius: 8px;
+        border: 1px solid #eee;
+        max-height: 200px;
+        overflow-y: auto;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        font-family: inherit;
+    }
+
+    /* User dropdown logout button styling */
+    .user-dropdown .logout-btn {
+        background: none;
+        border: none;
+        color: inherit;
+        cursor: pointer;
+        width: 100%;
+        text-align: left;
+        padding: 0;
+        font-size: 14px;
+        font-family: inherit;
+    }
+
+    .user-dropdown .logout-btn:hover {
+        background: rgba(0, 0, 0, 0.05);
+    }
+
+    .user-dropdown .logout-item {
+        padding: 8px 16px;
+    }
+
+    .user-dropdown .logout-item:hover {
+        background: rgba(0, 0, 0, 0.05);
+    }
 }

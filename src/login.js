@@ -232,6 +232,7 @@ const Login = ({ onLogin }) => {
 
     const renderRegistrationFields = () => {
         switch (formData.role) {
+            // In Login.js, inside the renderRegistrationFields() function
             case '25-101': // Coordinator
                 return (
                     <>
@@ -243,14 +244,30 @@ const Login = ({ onLogin }) => {
                             onChange={handleChange}
                             required
                         />
-                        <input
-                            type="text"
+
+                        {/* Replace text input with dropdown */}
+                        <select
                             name="coordinatorDepartment"
-                            placeholder="Department"
                             value={formData.coordinatorDepartment}
                             onChange={handleChange}
                             required
-                        />
+                            style={{
+                                padding: '12px',
+                                margin: '10px 0',
+                                border: '1px solid #ddd',
+                                borderRadius: '4px',
+                                width: '100%',
+                                fontSize: '16px'
+                            }}
+                        >
+                            <option value="">Select Department</option>
+                            <option value="CEA">CEA - College of Engineering and Architecture</option>
+                            <option value="CCS">CCS - College of Computer Studies</option>
+                            <option value="CASE">CASE - College of Arts, Sciences, and Education</option>
+                            <option value="CMBA">CMBA - College of Management, Business and Accountancy</option>
+                            <option value="CNAHS">CNAHS - College of Nursing and Allied Health Sciences</option>
+                            <option value="CCJ">CCJ - College of Criminal Justice</option>
+                        </select>
                     </>
                 );
             case '25-102': // Company

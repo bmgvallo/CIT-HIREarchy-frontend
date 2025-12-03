@@ -1061,4 +1061,27 @@ textarea.form-input {
   border-top: 1px solid var(--border);
   align-items: center;
 }
+
+.student-info-card {
+  background: #f8f9fa;
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid #dee2e6;
+  margin-bottom: 15px;
+}
+
+.student-info-card .form-row {
+  display: flex;
+  margin-bottom: 10px;
+}
+
+.student-info-card .half-width {
+  flex: 1;
+  padding: 0 10px;
+}
+
+.student-info-card strong {
+  color: #333;
+  margin-right: 5px;
+}
 }

@@ -78,45 +78,70 @@ function Coordinator() {
     try {
       console.log('Fetching jobs for coordinator:', coordinatorId, 'Department:', user.coordinatorDepartment);
 
-      // FIRST: Try to get ALL jobs for the department
-      const response = await fetch(`http://localhost:8080/api/listings/department/${user.coordinatorDepartment}`);
+      if (!coordinatorId || !user.coordinatorDepartment) {
+        console.error('Coordinator ID or Department missing');
+        return;
+      }
+
+      // Use the coordinator-specific endpoint you created
+      const response = await fetch(
+        `http://localhost:8080/api/coordinator/department/jobs?coordinatorId=${coordinatorId}`
+      );
 
       if (response.ok) {
-        const departmentJobs = await response.json();
+        let departmentJobs = await response.json();
         console.log('Department jobs from API:', departmentJobs);
 
-        // Set ALL jobs (pending, approved, rejected)
-        setJobs(departmentJobs);
+        // Fetch company details for each job (if not already included)
+        const jobsWithCompanyDetails = await Promise.all(
+          departmentJobs.map(async (job) => {
+            // If company object is minimal (only has ID), fetch full details
+            if (job.company && job.company.id && !job.company.companyName) {
+              try {
+                const companyResponse = await fetch(`http://localhost:8080/api/companies/${job.company.id}`);
+                if (companyResponse.ok) {
+                  const companyData = await companyResponse.json();
+                  return {
+                    ...job,
+                    company: companyData
+                  };
+                }
+              } catch (error) {
+                console.error(`Error fetching company for job ${job.listingID}:`, error);
+              }
+            }
+            return job;
+          })
+        );
 
-      } else if (response.status === 404) {
-        // If department endpoint doesn't exist, fallback to getting ALL jobs
-        console.log('Department endpoint not found, fetching all jobs...');
+        console.log('Jobs with company details:', jobsWithCompanyDetails);
+        setJobs(jobsWithCompanyDetails);
+      } else {
+        console.error('Failed to fetch department jobs:', response.status);
+
+        // Fallback: Get all jobs and filter manually
         const allJobsResponse = await fetch('http://localhost:8080/api/listings');
-
         if (allJobsResponse.ok) {
           const allJobs = await allJobsResponse.json();
-          console.log('All jobs from API:', allJobs);
+          console.log('All jobs fetched for manual filtering:', allJobs);
 
-          // Filter jobs by department manually
-          const departmentJobs = allJobs.filter(job => {
-            // Filter by coordinator's department
-            if (!user.coordinatorDepartment) return true;
-
-            // Check if job courses match coordinator's department
+          // Filter jobs by coordinator's department
+          const filteredJobs = allJobs.filter(job => {
             if (!job.courses || job.courses.length === 0) return false;
 
-            const departmentUpper = user.coordinatorDepartment.toUpperCase();
-            const departmentMap = {
-              'CEA': ['Architecture', 'Engineering'],
-              'CCS': ['Information Technology', 'Computer Science'],
-              'CASE': ['Arts', 'Sciences', 'Education', 'Communication', 'Psychology'],
-              'CMBA': ['Business', 'Accountancy', 'Management', 'Hospitality', 'Tourism'],
-              'CNAHS': ['Nursing', 'Pharmacy', 'Medical'],
-              'CCJ': ['Criminology']
-            };
-
-            const keywords = departmentMap[departmentUpper] || [];
+            // Check if any course in the job belongs to coordinator's department
             return job.courses.some(course => {
+              // This is a simplified check - you might want to use DepartmentCourseMapper
+              const departmentMap = {
+                'CEA': ['Architecture', 'Engineering', 'Chemical', 'Civil', 'Computer', 'Electrical', 'Electronics', 'Industrial', 'Mechanical', 'Mining'],
+                'CCS': ['Information Technology', 'Computer Science', 'IT', 'CS'],
+                'CASE': ['Arts', 'Sciences', 'Education', 'Communication', 'Psychology', 'Biology', 'Math', 'English', 'Multimedia'],
+                'CMBA': ['Business', 'Accountancy', 'Management', 'Hospitality', 'Tourism', 'Office Administration', 'Public Administration'],
+                'CNAHS': ['Nursing', 'Pharmacy', 'Medical'],
+                'CCJ': ['Criminology']
+              };
+
+              const keywords = departmentMap[user.coordinatorDepartment.toUpperCase()] || [];
               const courseLower = course.toLowerCase();
               return keywords.some(keyword =>
                 courseLower.includes(keyword.toLowerCase())
@@ -124,15 +149,33 @@ function Coordinator() {
             });
           });
 
-          console.log('Filtered department jobs:', departmentJobs);
-          setJobs(departmentJobs);
+          // Fetch company details for filtered jobs
+          const jobsWithDetails = await Promise.all(
+            filteredJobs.map(async (job) => {
+              if (job.company && job.company.id) {
+                try {
+                  const companyResponse = await fetch(`http://localhost:8080/api/companies/${job.company.id}`);
+                  if (companyResponse.ok) {
+                    const companyData = await companyResponse.json();
+                    return {
+                      ...job,
+                      company: companyData
+                    };
+                  }
+                } catch (error) {
+                  console.error(`Error fetching company for job ${job.listingID}:`, error);
+                }
+              }
+              return job;
+            })
+          );
+
+          console.log('Filtered jobs with company details:', jobsWithDetails);
+          setJobs(jobsWithDetails);
         } else {
           console.error('Failed to fetch all jobs');
           setJobs([]);
         }
-      } else {
-        console.error('Failed to fetch department jobs:', response.status);
-        setJobs([]);
       }
     } catch (error) {
       console.error('Error fetching jobs:', error);
@@ -166,6 +209,7 @@ function Coordinator() {
   };
 
   // Job approval
+  // Job approval
   const approveJob = async (jobId) => {
     if (!coordinatorId) {
       showNotification('Coordinator ID not found', 'error');
@@ -181,9 +225,20 @@ function Coordinator() {
 
         if (response.ok) {
           const updatedJob = await response.json();
+
+          // Fetch company details for the updated job
+          if (updatedJob.company && updatedJob.company.id) {
+            const companyResponse = await fetch(`http://localhost:8080/api/companies/${updatedJob.company.id}`);
+            if (companyResponse.ok) {
+              const companyData = await companyResponse.json();
+              updatedJob.company = companyData;
+            }
+          }
+
           setJobs(prev => prev.map(job =>
             job.listingID === jobId ? updatedJob : job
           ));
+          setShowJobModal(false);
           showNotification('Job listing approved successfully', 'success');
         } else if (response.status === 403) {
           showNotification('You do not have permission to approve listings from this department', 'error');
@@ -196,6 +251,19 @@ function Coordinator() {
       } finally {
         setLoading(false);
       }
+    }
+  };
+
+  const fetchCompanyData = async (companyId) => {
+    try {
+      const response = await fetch(`http://localhost:8080/api/companies/${companyId}`);
+      if (response.ok) {
+        return await response.json();
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching company:', error);
+      return null;
     }
   };
 
@@ -219,8 +287,12 @@ function Coordinator() {
 
         if (response.ok) {
           const updatedJob = await response.json();
+
+          // Fetch company details for the updated job
+          const jobWithCompany = await fetchCompanyDetails(updatedJob);
+
           setJobs(prev => prev.map(job =>
-            job.listingID === jobId ? updatedJob : job
+            job.listingID === jobId ? jobWithCompany : job
           ));
           setRejectionReason('');
           setShowJobModal(false);
@@ -239,17 +311,60 @@ function Coordinator() {
     }
   };
 
+  // Helper function to fetch company details
+  const fetchCompanyDetails = async (job) => {
+    try {
+      // If job already has company with name, return as is
+      if (job.company?.companyName) {
+        return job;
+      }
+
+      // If job has company with ID, fetch details
+      if (job.company?.id) {
+        const companyResponse = await fetch(`http://localhost:8080/api/companies/${job.company.id}`);
+        if (companyResponse.ok) {
+          const companyData = await companyResponse.json();
+          return {
+            ...job,
+            company: companyData
+          };
+        }
+      }
+
+      return job;
+    } catch (error) {
+      console.error('Error fetching company details:', error);
+      return job;
+    }
+  };
+
+  // Also update viewJobDetails to fetch company details
+  const viewJobDetails = async (job) => {
+    // Fetch fresh company data before showing modal
+    if (job.company?.id && !job.company.companyName) {
+      try {
+        const companyResponse = await fetch(`http://localhost:8080/api/companies/${job.company.id}`);
+        if (companyResponse.ok) {
+          const companyData = await companyResponse.json();
+          job.company = companyData;
+        }
+      } catch (error) {
+        console.error('Error fetching company data:', error);
+      }
+    }
+
+    setSelectedJob(job);
+    setRejectionReason(job.rejectionReason || '');
+    setShowJobModal(true);
+  };
+
   const openRejectModal = (job) => {
     setSelectedJob(job);
     setRejectionReason(job.rejectionReason || '');
     setShowJobModal(true);
   };
 
-  const viewJobDetails = (job) => {
-    setSelectedJob(job);
-    setRejectionReason(job.rejectionReason || '');
-    setShowJobModal(true);
-  };
+
 
   // Notification handlers
   const markAsRead = async (notificationId) => {
@@ -343,13 +458,20 @@ function Coordinator() {
     }, 1000);
   };
 
+  // Close modal when clicking outside
+  const handleModalClose = (e) => {
+    if (e.target.classList.contains('modal-overlay')) {
+      setShowJobModal(false);
+    }
+  };
+
   return (
     <div className="Coordinator">
       {/* Header */}
       <div className="header-container">
         <div className="header-content">
           <div className="logo-section">
-            <h2>HIRE<span>archy</span> <span className="admin-badge">Coordinator</span></h2>
+            <h2>HIRE<span>archy</span></h2>
           </div>
 
           <div className="header-right">
@@ -429,8 +551,11 @@ function Coordinator() {
                     <i className="fas fa-cog"></i> Settings
                   </div>
                   <div className="user-dropdown-divider"></div>
-                  <div className="user-dropdown-item">
-                    <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
+                  <div className="user-dropdown-item logout-item">
+                    <button
+                      onClick={handleLogout}
+                      className="logout-btn"
+                    >
                       <i className="fas fa-sign-out-alt"></i> Logout
                     </button>
                   </div>
@@ -507,99 +632,79 @@ function Coordinator() {
 
           <div className="divider"></div>
 
-          {/* Jobs Table */}
-          <div className="jobs-table-container">
-            <table className="jobs-table">
-              <thead>
-                <tr>
-                  <th>Job Title</th>
-                  <th>Company</th>
-                  <th>Location</th>
-                  <th>Salary</th>
-                  <th>Departments</th>
-                  <th>Posted Date</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredJobs.length > 0 ? (
-                  filteredJobs.map(job => (
-                    <tr key={job.listingID} className="job-row">
-                      <td>
-                        <div className="job-title-cell">
-                          <strong>{job.title}</strong>
-                          <button
-                            className="view-details-btn"
-                            onClick={() => viewJobDetails(job)}
-                            title="View full details"
-                          >
-                            <i className="fas fa-eye"></i>
-                          </button>
-                        </div>
-                      </td>
-                      <td>{job.company?.companyName || 'N/A'}</td>
-                      <td>
-                        <div className="location-cell">
-                          <i className="fas fa-map-marker-alt"></i>
-                          {job.location}
-                        </div>
-                      </td>
-                      <td className="salary-cell">{formatSalary(job.salary)}</td>
-                      <td className="departments-cell">
-                        <span className="departments-tag">{getDepartmentsList(job)}</span>
-                      </td>
-                      <td>{formatDate(job.postDate)}</td>
-                      <td>
-                        <span className={`status-badge ${getStatusBadgeClass(job.status)}`}>
-                          {job.status}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="action-buttons">
-                          {job.status === 'pending' && (
-                            <>
-                              <button
-                                className="btn-approve"
-                                onClick={() => approveJob(job.listingID)}
-                                title="Approve job listing"
-                                disabled={loading}
-                              >
-                                <i className="fas fa-check"></i>
-                                Approve
-                              </button>
-                              <button
-                                className="btn-reject"
-                                onClick={() => openRejectModal(job)}
-                                title="Reject job listing"
-                                disabled={loading}
-                              >
-                                <i className="fas fa-times"></i>
-                                Reject
-                              </button>
-                            </>
-                          )}
-                          {(job.status === 'approved' || job.status === 'rejected') && (
-                            <span className="action-completed">
-                              {job.status === 'approved' ? 'Approved' : 'Rejected'}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="8" className="no-jobs">
-                      <div className="no-jobs-content">
-                        <i className="fas fa-search"></i>
-                        <p>No job listings found matching your criteria</p>
+          {/* Jobs Grid - Card Layout */}
+          <div className="properties-container">
+            {filteredJobs.length > 0 ? (
+              filteredJobs.map(job => (
+                <div key={job.listingID} className="property-card">
+                  <div className="property-content">
+                    {/* Job Header */}
+                    <div className="job-header">
+                      <h3 className="property-title">{job.title}</h3>
+                      <div className={`property-status-badge ${job.status === 'pending' ? 'draft' :
+                        job.status === 'approved' ? 'active' : 'closed'}`}>
+                        {job.status}
                       </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                    </div>
+
+                    {/* Company and Location */}
+                    <div className="property-location">
+                      <i className="fas fa-building"></i>
+                      {job.company?.companyName || 'Company Not Available'} •
+                      <i className="fas fa-map-marker-alt" style={{ marginLeft: '10px' }}></i> {job.location}
+                    </div>
+
+                    {/* Job Details */}
+                    <div className="property-details">
+                      <span>Posted: {formatDate(job.postDate)}</span> •
+                      <span> Deadline: {formatDate(job.deadline)}</span> •
+                      <span> Type: {job.duration}</span>
+                    </div>
+
+                    {/* Salary */}
+                    <div className="property-price">
+                      {formatSalary(job.salary)}
+                      <span className="price-period">/month</span>
+                    </div>
+
+                    {/* Targeted Programs */}
+                    {job.courses && job.courses.length > 0 && (
+                      <div className="targeted-courses">
+                        <strong>Targeted Programs:</strong>
+                        <div style={{ marginTop: '5px' }}>
+                          {job.courses.map((course, index) => (
+                            <span key={index} className="program-tag">
+                              {course}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Job Description Preview */}
+                    <div className="job-description">
+                      {job.description && job.description.length > 150
+                        ? `${job.description.substring(0, 150)}...`
+                        : job.description}
+                    </div>
+
+                    {/* Actions - Only View Details button */}
+                    <div className="property-actions">
+                      <button className="btn-edit" onClick={() => viewJobDetails(job)}>
+                        <i className="fas fa-eye"></i> View Details
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="no-properties">
+                <div className="no-jobs-content">
+                  <i className="fas fa-search" style={{ fontSize: '48px', color: '#ccc', marginBottom: '20px' }}></i>
+                  <p>No job listings found matching your criteria</p>
+                </div>
+              </div>
+            )}
           </div>
         </main>
 
@@ -655,7 +760,7 @@ function Coordinator() {
 
       {/* Job Details Modal */}
       {showJobModal && selectedJob && (
-        <div className="modal-overlay active">
+        <div className="modal-overlay active" onClick={handleModalClose}>
           <div className="modal admin-modal">
             <div className="modal-header">
               <h2 className="modal-title">Job Listing Details</h2>
@@ -748,10 +853,7 @@ function Coordinator() {
                     <div className="admin-action-buttons">
                       <button
                         className="btn-approve-large"
-                        onClick={() => {
-                          approveJob(selectedJob.listingID);
-                          setShowJobModal(false);
-                        }}
+                        onClick={() => approveJob(selectedJob.listingID)}
                         disabled={loading}
                       >
                         <i className="fas fa-check"></i>

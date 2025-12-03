@@ -153,9 +153,49 @@ function App() {
       const response = await fetch(`http://localhost:8080/api/listings/company/${companyId}`);
 
       if (response.ok) {
-        const data = await response.json();
-        console.log('Jobs fetched:', data);
-        setJobs(data);
+        const jobs = await response.json();
+        console.log('Jobs fetched:', jobs);
+
+        // For each job, fetch its applications
+        const jobsWithApplications = await Promise.all(
+          jobs.map(async (job) => {
+            try {
+              const applicationsResponse = await fetch(
+                `http://localhost:8080/api/applications/listing/${job.listingID}`
+              );
+
+              if (applicationsResponse.ok) {
+                const applications = await applicationsResponse.json();
+                return {
+                  ...job,
+                  applications: applications,
+                  applicationCount: applications.length,
+                  pendingCount: applications.filter(app =>
+                    app.status?.toLowerCase() === 'pending'
+                  ).length
+                };
+              } else {
+                return {
+                  ...job,
+                  applications: [],
+                  applicationCount: 0,
+                  pendingCount: 0
+                };
+              }
+            } catch (error) {
+              console.error(`Error fetching applications for job ${job.listingID}:`, error);
+              return {
+                ...job,
+                applications: [],
+                applicationCount: 0,
+                pendingCount: 0
+              };
+            }
+          })
+        );
+
+        console.log('Jobs with applications:', jobsWithApplications);
+        setJobs(jobsWithApplications);
       } else {
         console.error('Failed to fetch jobs:', response.status);
         setJobs([]);
@@ -165,6 +205,35 @@ function App() {
       setJobs([]);
     }
   }, [user?.companyID, user?.id]);
+
+  // Refresh application counts for a specific job
+  const refreshJobApplications = async (jobId) => {
+    try {
+      const applicationsResponse = await fetch(
+        `http://localhost:8080/api/applications/listing/${jobId}`
+      );
+
+      if (applicationsResponse.ok) {
+        const applications = await applicationsResponse.json();
+
+        setJobs(prev => prev.map(job =>
+          job.listingID === jobId ? {
+            ...job,
+            applications: applications,
+            applicationCount: applications.length,
+            pendingCount: applications.filter(app =>
+              app.status?.toLowerCase() === 'pending'
+            ).length
+          } : job
+        ));
+
+        return applications;
+      }
+    } catch (error) {
+      console.error(`Error refreshing applications for job ${jobId}:`, error);
+    }
+    return [];
+  };
 
   // Fetch notifications
   const fetchNotifications = useCallback(async () => {
@@ -205,6 +274,23 @@ function App() {
       fetchNotifications();
     }
   }, [user?.id, fetchJobs, fetchNotifications]);
+
+  useEffect(() => {
+    if (jobs.length === 0) return;
+
+    const interval = setInterval(() => {
+      console.log('Refreshing application counts...');
+
+      // Only refresh jobs that have applications
+      jobs.forEach(job => {
+        if (job.applicationCount > 0 || job.pendingCount > 0) {
+          refreshJobApplications(job.listingID);
+        }
+      });
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [jobs]); // Remove activeTab from dependencies
 
   // Modal handlers
   const openModal = () => {
@@ -278,6 +364,16 @@ function App() {
 
       if (response.ok) {
         const applications = await response.json();
+        console.log('Fetched applications with details:', applications);
+
+        // Log each application's resume and cover letter
+        applications.forEach(app => {
+          console.log(`Application ${app.applicationID}:`, {
+            resumeURL: app.resumeURL,
+            coverLetter: app.coverLetter ? app.coverLetter.substring(0, 100) + '...' : 'None'
+          });
+        });
+
         setSelectedJobApplications(applications);
         setShowApplicationsModal(true);
       } else {
@@ -290,6 +386,10 @@ function App() {
   };
 
   const viewApplicationDetails = (application) => {
+    console.log('Viewing application details:', application);
+    console.log('Resume URL:', application.resumeURL);
+    console.log('Cover Letter:', application.coverLetter);
+
     setSelectedApplication(application);
     setApplicationFeedback(application.feedback || '');
     setShowApplicationDetailsModal(true);
@@ -313,20 +413,10 @@ function App() {
       if (response.ok) {
         const updatedApplication = await response.json();
 
-        // Update in local state
-        setJobs(prev => prev.map(job => {
-          if (job.listingID === selectedJobForApplications?.listingID && job.applications) {
-            return {
-              ...job,
-              applications: job.applications.map(app =>
-                app.applicationID === selectedApplication.applicationID
-                  ? updatedApplication
-                  : app
-              )
-            };
-          }
-          return job;
-        }));
+        // Refresh the application count for this job
+        if (selectedJobForApplications?.listingID) {
+          await refreshJobApplications(selectedJobForApplications.listingID);
+        }
 
         showNotification(`Application ${status.toLowerCase()} successfully`, 'success');
         setShowApplicationDetailsModal(false);
@@ -338,6 +428,8 @@ function App() {
       showNotification('Error updating application', 'error');
     }
   };
+
+
   const selectAllCoursesInDepartment = (department) => {
     const departmentCourses = CIT_U_COURSES[department] || [];
     setFormData(prev => {
@@ -361,21 +453,6 @@ function App() {
   // Handle job submission
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // Validate department and courses
-    if (!selectedDepartment) {
-      showNotification('Please select a department', 'error');
-      return;
-    }
-
-    const selectedCoursesInDept = formData.selectedCourses.filter(course =>
-      filteredCourses.includes(course)
-    );
-
-    if (selectedCoursesInDept.length === 0) {
-      showNotification(`Please select at least one program from ${selectedDepartment} department`, 'error');
-      return;
-    }
-
     setLoading(true);
 
     try {
@@ -398,7 +475,8 @@ function App() {
         duration: formData.duration,
         deadline: formData.deadline,
         salary: parseFloat(formData.salary),
-        status: "pending",
+        // CRITICAL CHANGE: If editing an approved job, set status back to pending
+        status: editingJobId ? "pending" : "pending", // Always set to pending when editing
         courses: formData.selectedCourses,
         company: { id: companyId }
       };
@@ -408,7 +486,11 @@ function App() {
       let response;
 
       if (editingJobId) {
-        // Update existing job
+        // Get the current job to check its status
+        const currentJob = jobs.find(job => job.listingID === editingJobId);
+        const wasApproved = currentJob?.status === 'approved';
+
+        // Update existing job - status will be set to pending above
         response = await fetch(`http://localhost:8080/api/listings/${editingJobId}`, {
           method: 'PUT',
           headers: {
@@ -423,7 +505,12 @@ function App() {
             job.listingID === editingJobId ? savedJob : job
           ));
           closeModal();
-          showNotification('Job listing updated successfully!', 'success');
+
+          if (wasApproved) {
+            showNotification('Job listing updated successfully! It has been sent back to the coordinator for re-approval.', 'success');
+          } else {
+            showNotification('Job listing updated successfully!', 'success');
+          }
         } else {
           const errorText = await response.text();
           showNotification(`Error updating job: ${errorText}`, 'error');
@@ -699,8 +786,11 @@ function App() {
                     <i className="fas fa-cog"></i> Settings
                   </div>
                   <div className="user-dropdown-divider"></div>
-                  <div className="user-dropdown-item">
-                    <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
+                  <div className="user-dropdown-item logout-item">
+                    <button
+                      onClick={handleLogout}
+                      className="logout-btn"
+                    >
                       <i className="fas fa-sign-out-alt"></i> Logout
                     </button>
                   </div>
@@ -775,6 +865,35 @@ function App() {
             </div>
           </div>
 
+          <button
+            onClick={() => {
+              console.log('DEBUG: Current jobs data:', jobs);
+              jobs.forEach((job, i) => {
+                console.log(`Job ${i + 1}:`, {
+                  id: job.listingID,
+                  title: job.title,
+                  applicationCount: job.applicationCount,
+                  pendingCount: job.pendingCount,
+                  applications: job.applications
+                });
+              });
+            }}
+            style={{
+              background: '#666',
+              color: 'white',
+              border: 'none',
+              padding: '5px 10px',
+              borderRadius: '3px',
+              marginLeft: '10px',
+              cursor: 'pointer',
+              fontSize: '12px'
+            }}
+          >
+            Debug Counts
+          </button>
+
+          <div className="divider"></div>
+
           <div className="divider"></div>
 
           {/* Jobs Grid */}
@@ -801,10 +920,10 @@ function App() {
                     {/* Applications count */}
                     <div className="applications-count">
                       <i className="fas fa-users"></i>
-                      <strong>{job.applications?.length || 0}</strong> Applications
-                      {job.applications?.length > 0 && (
+                      <strong>{job.applicationCount || job.applications?.length || 0}</strong> Applications
+                      {(job.pendingCount || (job.applications?.filter(app => app.status === 'PENDING').length || 0)) > 0 && (
                         <span className="pending-count">
-                          ({job.applications.filter(app => app.status === 'PENDING').length} pending)
+                          ({job.pendingCount || job.applications?.filter(app => app.status === 'PENDING').length || 0} pending)
                         </span>
                       )}
                     </div>
@@ -901,6 +1020,22 @@ function App() {
               <div className="modal-header">
                 <h2 className="modal-title">
                   {editingJobId ? 'Edit Job Listing' : 'Create New Job Listing'}
+                  {editingJobId && jobs.find(job => job.listingID === editingJobId)?.status === 'approved' && (
+                    <div className="reapproval-warning" style={{
+                      fontSize: '14px',
+                      color: '#ff9800',
+                      fontWeight: 'normal',
+                      marginTop: '5px',
+                      backgroundColor: '#fff8e1',
+                      padding: '8px 12px',
+                      borderRadius: '4px',
+                      borderLeft: '4px solid #ff9800',
+                      marginTop: '10px'
+                    }}>
+                      <i className="fas fa-exclamation-triangle" style={{ marginRight: '8px' }}></i>
+                      <strong>Note:</strong> Editing an approved listing will require coordinator re-approval before students can see it again.
+                    </div>
+                  )}
                 </h2>
                 <button type="button" className="close-modal" onClick={closeModal}>
                   <i className="fas fa-times"></i>
@@ -1300,11 +1435,13 @@ function App() {
                 Pending: {selectedJobApplications.filter(app => app.status === 'PENDING').length}
               </div>
 
+              {/* In the applications table in Company.js */}
               <table className="applications-table">
                 <thead>
                   <tr>
                     <th>Student Name</th>
                     <th>Program</th>
+                    <th>GPA</th> {/* Add this column */}
                     <th>Applied Date</th>
                     <th>Status</th>
                     <th>Actions</th>
@@ -1316,6 +1453,10 @@ function App() {
                       <tr key={application.applicationID}>
                         <td>{application.student?.studName || 'N/A'}</td>
                         <td>{application.student?.course || 'N/A'}</td>
+                        <td>
+                          {application.student?.studGPA ?
+                            application.student.studGPA.toFixed(2) : 'N/A'}
+                        </td> {/* Add this cell */}
                         <td>{formatDate(application.applyDate)}</td>
                         <td>
                           <span className={`application-status status-${application.status?.toLowerCase()}`}>
@@ -1336,7 +1477,7 @@ function App() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="5" style={{ textAlign: 'center', padding: '40px' }}>
+                      <td colSpan="6" style={{ textAlign: 'center', padding: '40px' }}>
                         <p>No applications yet for this job listing.</p>
                       </td>
                     </tr>
@@ -1381,6 +1522,11 @@ function App() {
                     {selectedApplication.student?.studYrLevel || 'N/A'}
                   </div>
                   <div className="info-item">
+                    <strong>GPA:</strong><br />
+                    {selectedApplication.student?.studGPA ?
+                      selectedApplication.student.studGPA.toFixed(2) : 'Not specified'}
+                  </div>
+                  <div className="info-item">
                     <strong>Email:</strong><br />
                     {selectedApplication.student?.email || 'N/A'}
                   </div>
@@ -1394,15 +1540,24 @@ function App() {
                 <div className="info-item">
                   <strong>Resume:</strong><br />
                   {selectedApplication.resumeURL ? (
-                    <a href={selectedApplication.resumeURL} target="_blank" rel="noopener noreferrer">
-                      <i className="fas fa-file-pdf"></i> View Resume
+                    <a
+                      href={selectedApplication.resumeURL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="resume-link"
+                    >
+                      <i className="fas fa-file-pdf"></i> {selectedApplication.resumeURL}
                     </a>
                   ) : 'No resume provided'}
                 </div>
 
                 <div className="cover-letter">
                   <strong>Cover Letter:</strong><br />
-                  {selectedApplication.coverLetter || 'No cover letter provided'}
+                  {selectedApplication.coverLetter ? (
+                    <div className="cover-letter-content">
+                      {selectedApplication.coverLetter}
+                    </div>
+                  ) : 'No cover letter provided'}
                 </div>
 
                 <div className="feedback-section">
