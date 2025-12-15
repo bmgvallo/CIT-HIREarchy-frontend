@@ -13,8 +13,8 @@ function Student() {
     id: null
   });
 
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  // const [notifications, setNotifications] = useState([]);
+  // const [unreadCount, setUnreadCount] = useState(0);
   const [applications, setApplications] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -27,12 +27,12 @@ function Student() {
   const [loading, setLoading] = useState(false);
   const [studentId, setStudentId] = useState(null);
 
+
   // Application form state
   const [applicationForm, setApplicationForm] = useState({
     internshipListing: { listingID: null },
     coverLetter: '',
     resumeURL: '',
-    additionalInfo: ''
   });
 
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -156,6 +156,10 @@ function Student() {
         const data = await response.json();
         console.log('Fetched applications:', data);
 
+        data.forEach(app => {
+          console.log(`App ${app.applicationID || app.id}: Status = ${app.status}, Pending = ${app.status === 'PENDING'}`);
+        });
+
         // Make sure applications have the right structure
         const formattedApplications = data.map(app => ({
           applicationID: app.applicationID || app.id,
@@ -163,7 +167,6 @@ function Student() {
           status: app.status || app.applicationStatus,
           coverLetter: app.coverLetter || '',
           resumeURL: app.resumeURL || app.resume,
-          additionalInfo: app.additionalInfo || '',
           internshipListing: app.internshipListing || {},
           student: app.student || {}
         }));
@@ -183,7 +186,7 @@ function Student() {
   }, [studentId]);
 
   // Fetch notifications
-  const fetchNotifications = useCallback(async () => {
+  /*const fetchNotifications = useCallback(async () => {
     try {
       const mockNotifications = [
         {
@@ -207,6 +210,7 @@ function Student() {
       console.error('Error fetching notifications:', error);
     }
   }, []);
+  */
 
   // Fetch initial data
   useEffect(() => {
@@ -216,9 +220,9 @@ function Student() {
   useEffect(() => {
     if (studentId) {
       fetchApplications();
-      fetchNotifications();
+      // fetchNotifications();
     }
-  }, [studentId, fetchApplications, fetchNotifications]);
+  }, [studentId, fetchApplications, /*fetchNotifications*/]);
 
   useEffect(() => {
     if (student.course) {
@@ -238,8 +242,7 @@ function Student() {
     setApplicationForm({
       internshipListing: { listingID: job.listingID },
       coverLetter: '',
-      resumeURL: student.resumeURL || '',
-      additionalInfo: ''
+      resumeURL: student.resumeURL || ''
     });
     setShowModal(true);
   };
@@ -249,8 +252,7 @@ function Student() {
     setApplicationForm({
       internshipListing: { listingID: null },
       coverLetter: '',
-      resumeURL: '',
-      additionalInfo: ''
+      resumeURL: ''
     });
   };
 
@@ -299,16 +301,14 @@ function Student() {
         applyDate: new Date().toISOString().split('T')[0],
         status: 'PENDING',
         coverLetter: applicationForm.coverLetter,
-        resumeURL: applicationForm.resumeURL,
-        additionalInfo: applicationForm.additionalInfo
+        resumeURL: applicationForm.resumeURL
       };
 
       console.log('Submitting application data:', {
         listingID: applicationForm.internshipListing.listingID,
         studentId: studentId,
         coverLetterLength: applicationForm.coverLetter?.length,
-        resumeURL: applicationForm.resumeURL,
-        additionalInfo: applicationForm.additionalInfo
+        resumeURL: applicationForm.resumeURL
       });
 
       const response = await fetch('http://localhost:8080/api/applications', {
@@ -375,8 +375,8 @@ function Student() {
     setLoading(true);
     try {
       // Validate GPA if provided
-      if (profileForm.studGPA && (parseFloat(profileForm.studGPA) < 0 || parseFloat(profileForm.studGPA) > 4)) {
-        showNotification('GPA must be between 0 and 4', 'error');
+      if (profileForm.studGPA && (parseFloat(profileForm.studGPA) < 0 || parseFloat(profileForm.studGPA) >= 5)) {
+        showNotification('GPA must be between 0 and 5', 'error');
         setLoading(false);
         return;
       }
@@ -444,7 +444,7 @@ function Student() {
   };
 
   // Notification handlers
-  const markAsRead = async (notificationId) => {
+  /*const markAsRead = async (notificationId) => {
     setNotifications(prev =>
       prev.map(n =>
         n.id === notificationId ? { ...n, is_read: true } : n
@@ -459,10 +459,17 @@ function Student() {
     );
     setUnreadCount(0);
   };
+  */
 
   // Withdraw application
   const withdrawApplication = async (applicationId) => {
     const application = applications.find(app => app.applicationID === applicationId);
+    // Check if application is approved or rejected
+    const status = application?.status?.toLowerCase();
+    if (status === 'approved' || status === 'rejected') {
+      showNotification(`Cannot withdraw an ${status} application`, 'error');
+      return;
+    }
 
     if (application && application.status !== 'PENDING') {
       showNotification('Cannot withdraw an application that has already been approved or rejected', 'error');
@@ -551,7 +558,7 @@ function Student() {
     switch (statusLower) {
       case 'approved': return 'Approved';
       case 'pending': return 'Under Review';
-      case 'rejected': return 'Not Selected';
+      case 'rejected': return 'Rejected';
       default: return status;
     }
   };
@@ -566,100 +573,51 @@ function Student() {
   };
 
   // Tab switcher component
+  // Tab switcher component - Enhanced
   const TabSwitcher = () => (
     <div className="tab-switcher">
-      <button
-        className={`tab-button ${activeTab === 'applications' ? 'active' : ''}`}
-        onClick={() => setActiveTab('applications')}
-      >
-        My Applications
-      </button>
-      <button
-        className={`tab-button ${activeTab === 'jobs' ? 'active' : ''}`}
-        onClick={() => setActiveTab('jobs')}
-      >
-        Browse Internships
-      </button>
+      <div className="tab-nav">
+        <button
+          className={`tab-button ${activeTab === 'applications' ? 'active' : ''}`}
+          onClick={() => setActiveTab('applications')}
+        >
+          <div className="tab-button-content">
+            <i className="fas fa-file-alt tab-icon"></i>
+            <span className="tab-text">My Applications</span>
+            <span className="tab-badge">{totalApplications}</span>
+          </div>
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'jobs' ? 'active' : ''}`}
+          onClick={() => setActiveTab('jobs')}
+        >
+          <div className="tab-button-content">
+            <i className="fas fa-search tab-icon"></i>
+            <span className="tab-text">Browse Internships</span>
+            <span className="tab-badge">{jobListings.length}</span>
+          </div>
+        </button>
+        <div className="tab-slider" style={{
+          transform: `translateX(${activeTab === 'applications' ? '0%' : '100%'})`,
+          width: '50%'
+        }}></div>
+      </div>
     </div>
   );
 
   return (
     <div className="App">
       <style>{`
-        .tab-switcher {
-          display: flex;
-          gap: 10px;
-          margin-top: 15px;
-        }
-        
-        .tab-button {
-          padding: 10px 20px;
-          border: 2px solid var(--primary);
-          background: white;
-          color: var(--primary);
-          border-radius: 5px;
-          cursor: pointer;
-          font-weight: 600;
-          transition: all 0.3s;
-        }
-        
-        .tab-button.active {
-          background: var(--primary);
-          color: white;
-        }
-        
-        .tab-button:hover:not(.active) {
-          background: #f5f5f5;
-        }
-        
-        .program-filter {
-          background: #f8f9fa;
-          padding: 10px 15px;
-          border-radius: 5px;
-          margin: 15px 0;
-          border: 1px solid #dee2e6;
-        }
-        
-        .program-tag {
-          background: var(--primary);
-          color: white;
-          padding: 4px 8px;
-          border-radius: 3px;
-          font-size: 12px;
-          margin: 2px;
-          display: inline-block;
-        }
-        
-        .student-info-card {
-          background: #f8f9fa;
-          padding: 15px;
-          border-radius: 8px;
-          border: 1px solid #dee2e6;
-          margin-bottom: 15px;
-        }
-        
-        .student-info-card .form-row {
-          display: flex;
-          margin-bottom: 10px;
-        }
-        
-        .student-info-card .half-width {
-          flex: 1;
-          padding: 0 10px;
-        }
-        
-        .student-info-card strong {
-          color: #333;
-          margin-right: 5px;
-        }
-        
-        .form-help-text {
-          display: block;
-          margin-top: 5px;
-          color: #666;
-          font-size: 12px;
-        }
-      `}</style>
+      /* Debug styles - remove after testing */
+      .property-actions {
+        display: flex !important;
+        gap: 10px !important;
+        margin-top: 20px !important;
+        padding-top: 15px !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+      }
+    `}</style>
 
       {/* Header */}
       <div className="header-container">
@@ -669,7 +627,7 @@ function Student() {
           </div>
 
           <div className="header-right">
-            {/* Notifications */}
+            {/* 
             <div className="notification-icon" onClick={() => setShowNotifications(!showNotifications)}>
               <i className="far fa-bell"></i>
               {unreadCount > 0 && <div className="notification-badge">{unreadCount}</div>}
@@ -718,6 +676,8 @@ function Student() {
                 )}
               </div>
             )}
+
+             */}
 
             {/* User Dropdown */}
             <div className="user-info" onClick={() => setShowUserDropdown(!showUserDropdown)}>
@@ -817,7 +777,7 @@ function Student() {
                   className={`filter-item ${activeFilter === 'rejected' ? 'active' : ''}`}
                   onClick={() => setActiveFilter('rejected')}
                 >
-                  Not Selected ({rejectedApplications})
+                  Rejected ({rejectedApplications})
                 </div>
               </div>
 
@@ -832,6 +792,12 @@ function Student() {
               <div className="properties-container">
                 {filteredApplications.length > 0 ? (
                   filteredApplications.map(application => {
+                    console.log('Rendering application:', {
+                      id: application.applicationID,
+                      status: application.status,
+                      hasJob: !!application.internshipListing,
+                      title: application.internshipListing?.title
+                    });
                     if (!application.internshipListing || Object.keys(application.internshipListing).length === 0) {
                       return (
                         <div key={application.applicationID} className="property-card">
@@ -849,20 +815,11 @@ function Student() {
                               <span>Applied: {formatDate(application.applyDate)}</span>
                             </div>
                             <div className="property-actions">
+                              {/* REMOVE View Job Details button since there's no job to view */}
                               {application.status?.toLowerCase() === 'pending' && (
                                 <button className="btn-delete" onClick={() => withdrawApplication(application.applicationID)}>
                                   <i className="fas fa-times"></i> Withdraw
                                 </button>
-                              )}
-                              {application.status?.toLowerCase() === 'approved' && (
-                                <span className="status-message" style={{ color: 'green', fontWeight: 'bold' }}>
-                                  ✓ Application Approved
-                                </span>
-                              )}
-                              {application.status?.toLowerCase() === 'rejected' && (
-                                <span className="status-message" style={{ color: '#8B0000', fontWeight: 'bold' }}>
-                                  ✗ Application Not Selected
-                                </span>
                               )}
                             </div>
                           </div>
@@ -908,12 +865,27 @@ function Student() {
                             <span className="price-period">/month</span>
                           </div>
 
+                          {/* In your application rendering, update the property-actions for non-pending apps */}
                           <div className="property-actions">
                             <button className="btn-edit" onClick={() => openJobModal(job)}>
-                              <i className="fas fa-eye"></i> View Job Details
+                              <i className="fas fa-eye"></i> View
                             </button>
-                            {application.status === 'PENDING' && (
+
+                            {/* Conditional buttons based on status */}
+                            {application.status?.toLowerCase() === 'pending' ? (
                               <button className="btn-delete" onClick={() => withdrawApplication(application.applicationID)}>
+                                <i className="fas fa-times"></i> Withdraw
+                              </button>
+                            ) : (
+                              <button
+                                className="btn-delete disabled-btn"
+                                disabled
+                                title={`Cannot withdraw ${application.status?.toLowerCase()} application`}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  showNotification(`Cannot withdraw ${application.status?.toLowerCase()} application`, 'error');
+                                }}
+                              >
                                 <i className="fas fa-times"></i> Withdraw
                               </button>
                             )}
@@ -931,31 +903,6 @@ function Student() {
             </>
           ) : (
             <>
-              {/* Job Listings Stats */}
-              <div className="stats-container">
-                <div className="stat-card">
-                  <div className="stat-number">{jobListings.length}</div>
-                  <div className="stat-label">Available Internships</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-number">
-                    {jobListings.filter(job => job.modality === 'Remote').length}
-                  </div>
-                  <div className="stat-label">Remote Opportunities</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-number">
-                    {jobListings.filter(job => job.modality === 'Hybrid').length}
-                  </div>
-                  <div className="stat-label">Hybrid Positions</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-number">
-                    {jobListings.filter(job => job.salary && job.salary >= 20000).length}
-                  </div>
-                  <div className="stat-label">High-Paying Roles</div>
-                </div>
-              </div>
 
               <div className="program-filter">
                 <strong>Showing internships for:</strong> {student.course || 'Your Program'}
@@ -974,6 +921,32 @@ function Student() {
                           <div className={`property-status-badge active`}>
                             Active
                           </div>
+                        </div>
+
+                        <div className="company-info-section">
+                          <div className="company-name">
+                            <i className="fas fa-building"></i> {job.company?.companyName || 'Company'} • {job.location}
+                          </div>
+                          {job.company?.companyDescription && (
+                            <div className="company-description-preview">
+                              <strong>Company Overview: </strong> {job.company.companyDescription.length > 80
+                                ? `${job.company.companyDescription.substring(0, 80)}...`
+                                : job.company.companyDescription}
+                            </div>
+                          )}
+                          {job.company?.companyWebsite && (
+                            <div className="company-website-preview">
+                              <strong>Website: </strong>
+                              <a
+                                href={job.company.companyWebsite}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="company-website-link"
+                              >
+                                {job.company.companyWebsite}
+                              </a>
+                            </div>
+                          )}
                         </div>
                         <div className="property-location">
                           <i className="fas fa-building"></i> {job.company?.companyName || 'Company'} • {job.location}
@@ -1085,6 +1058,7 @@ function Student() {
       </div>
 
       {/* Application Modal */}
+      {/* Application Modal */}
       {showModal && (
         <div className="modal-overlay active">
           <div className="modal">
@@ -1125,18 +1099,7 @@ function Student() {
                       onChange={handleInputChange}
                       className="form-input"
                       placeholder="https://drive.google.com/your-resume.pdf"
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Additional Information</label>
-                    <textarea
-                      name="additionalInfo"
-                      value={applicationForm.additionalInfo}
-                      onChange={handleInputChange}
-                      className="form-input"
-                      rows="3"
-                      placeholder="Any additional information you'd like to share with the employer..."
+                      required
                     />
                   </div>
                 </div>
@@ -1183,6 +1146,7 @@ function Student() {
         </div>
       )}
 
+    
       {/* Job Details Modal */}
       {showJobModal && selectedJob && (
         <div className="modal-overlay active">
@@ -1195,6 +1159,39 @@ function Student() {
             </div>
 
             <div className="modal-body">
+
+              <div className="company-details-section">
+                <h3 className="section-title">Company Information</h3>
+                <div className="company-details-card">
+                  <div className="company-detail-row">
+                    <strong>Company Name:</strong> {selectedJob.company?.companyName || 'Not specified'}
+                  </div>
+                  {selectedJob.company?.companyDescription && (
+                    <div className="company-detail-row">
+                      <strong>About Us:</strong> {selectedJob.company.companyDescription}
+                    </div>
+                  )}
+                  {selectedJob.company?.companyWebsite && (
+                    <div className="company-detail-row">
+                      <strong>Website:</strong>
+                      <a
+                        href={selectedJob.company.companyWebsite}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="company-website-link-modal"
+                      >
+                        <i className="fas fa-external-link-alt"></i> {selectedJob.company.companyWebsite}
+                      </a>
+                    </div>
+                  )}
+                  {selectedJob.company?.contactPerson && (
+                    <div className="company-detail-row">
+                      <strong>Contact Person:</strong> {selectedJob.company.contactPerson}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="job-details-section">
                 <div className="job-basic-info">
                   <div className="info-row">
@@ -1365,10 +1362,10 @@ function Student() {
                     className="form-input"
                     placeholder="e.g., 3.75"
                     min="0"
-                    max="4"
+                    max="5"
                     step="0.01"
                   />
-                  <small className="form-help-text">Enter your GPA (0.00 to 4.00)</small>
+                  <small className="form-help-text">Enter your GPA (0.00 to 5.00)</small>
                 </div>
 
                 <div className="form-group">

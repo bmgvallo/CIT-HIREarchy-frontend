@@ -51,6 +51,8 @@ const Login = ({ onLogin }) => {
         email: '',
         role: '25-103', // Default to student
         companyName: '',
+        companyDescription: '', // NEW
+        companyWebsite: '', // NEW
         coordinatorName: '',
         coordinatorDepartment: '',
         studName: '',
@@ -156,6 +158,8 @@ const Login = ({ onLogin }) => {
                             username: formData.username,
                             email: formData.email,
                             companyName: formData.companyName,
+                            companyDescription: formData.companyDescription, 
+                            companyWebsite: formData.companyWebsite, 
                             contactPerson: formData.contactPerson,
                             contactPhone: formData.contactPhone
                         };
@@ -280,6 +284,37 @@ const Login = ({ onLogin }) => {
                             value={formData.companyName}
                             onChange={handleChange}
                             required
+                        />
+                        <textarea
+                            name="companyDescription"
+                            placeholder="Company Description"
+                            value={formData.companyDescription}
+                            onChange={handleChange}
+                            rows="4"
+                            style={{
+                                padding: '12px',
+                                margin: '10px 0',
+                                border: '1px solid #ddd',
+                                borderRadius: '4px',
+                                width: '100%',
+                                fontSize: '16px',
+                                resize: 'vertical'
+                            }}
+                        />
+                        <input
+                            type="url"
+                            name="companyWebsite"
+                            placeholder="Company Website (e.g., https://company.com)"
+                            value={formData.companyWebsite}
+                            onChange={handleChange}
+                            style={{
+                                padding: '12px',
+                                margin: '10px 0',
+                                border: '1px solid #ddd',
+                                borderRadius: '4px',
+                                width: '100%',
+                                fontSize: '16px'
+                            }}
                         />
                         <input
                             type="text"

@@ -10,8 +10,8 @@ function Coordinator() {
     id: null
   });
 
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  // const [notifications, setNotifications] = useState([]);
+  // const [unreadCount, setUnreadCount] = useState(0);
   const [jobs, setJobs] = useState([]);
   const [filteredJobs, setFilteredJobs] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -58,7 +58,7 @@ function Coordinator() {
   useEffect(() => {
     if (coordinatorId) {
       fetchJobs();
-      fetchNotifications();
+      // fetchNotifications();
     }
   }, [coordinatorId]);
 
@@ -183,7 +183,7 @@ function Coordinator() {
     }
   };
 
-  const fetchNotifications = async () => {
+  /*const fetchNotifications = async () => {
     try {
       const mockNotifications = [
         {
@@ -207,6 +207,7 @@ function Coordinator() {
       console.error('Error fetching notifications:', error);
     }
   };
+  */
 
   // Job approval
   // Job approval
@@ -367,7 +368,7 @@ function Coordinator() {
 
 
   // Notification handlers
-  const markAsRead = async (notificationId) => {
+  /*const markAsRead = async (notificationId) => {
     setNotifications(prev =>
       prev.map(n =>
         n.id === notificationId ? { ...n, is_read: true } : n
@@ -382,6 +383,7 @@ function Coordinator() {
     );
     setUnreadCount(0);
   };
+  */
 
   // Utility functions
   const showNotification = (message, type) => {
@@ -475,7 +477,7 @@ function Coordinator() {
           </div>
 
           <div className="header-right">
-            {/* Notifications */}
+            {/* 
             <div className="notification-icon" onClick={() => setShowNotifications(!showNotifications)}>
               <i className="far fa-bell"></i>
               {unreadCount > 0 && <div className="notification-badge">{unreadCount}</div>}
@@ -525,6 +527,7 @@ function Coordinator() {
                 )}
               </div>
             )}
+             */}
 
             {/* User Dropdown */}
             <div className="user-info" onClick={() => setShowUserDropdown(!showUserDropdown)}>
@@ -547,9 +550,7 @@ function Coordinator() {
                   <div className="user-dropdown-item">
                     <i className="fas fa-building"></i> {user.coordinatorDepartment || 'Department'}
                   </div>
-                  <div className="user-dropdown-item">
-                    <i className="fas fa-cog"></i> Settings
-                  </div>
+
                   <div className="user-dropdown-divider"></div>
                   <div className="user-dropdown-item logout-item">
                     <button
@@ -647,11 +648,35 @@ function Coordinator() {
                       </div>
                     </div>
 
+
+
                     {/* Company and Location */}
-                    <div className="property-location">
-                      <i className="fas fa-building"></i>
-                      {job.company?.companyName || 'Company Not Available'} •
-                      <i className="fas fa-map-marker-alt" style={{ marginLeft: '10px' }}></i> {job.location}
+                    <div className="company-info-section">
+                      <div className="property-location">
+                        <i className="fas fa-building"></i>
+                        {job.company?.companyName || 'Company Not Available'} •
+                        <i className="fas fa-map-marker-alt" style={{ marginLeft: '10px' }}></i> {job.location}
+                      </div>
+                      {job.company?.companyDescription && (
+                        <div className="company-description-preview">
+                          <strong>Company Overview:</strong> {job.company.companyDescription.length > 100
+                            ? `${job.company.companyDescription.substring(0, 100)}...`
+                            : job.company.companyDescription}
+                        </div>
+                      )}
+                      {job.company?.companyWebsite && (
+                        <div className="company-website-preview">
+                          <strong>Website: </strong>
+                          <a
+                            href={job.company.companyWebsite}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="company-website-link"
+                          >
+                            {job.company.companyWebsite}
+                          </a>
+                        </div>
+                      )}
                     </div>
 
                     {/* Job Details */}
@@ -782,6 +807,10 @@ function Coordinator() {
                     <span>{selectedJob.company?.companyName || 'Not specified'}</span>
                   </div>
                   <div className="detail-row">
+                    <label>Contact Person:</label>
+                    <span>{selectedJob.company?.contactPerson || 'Not specified'}</span>
+                  </div>
+                  <div className="detail-row">
                     <label>Location:</label>
                     <span>{selectedJob.location}</span>
                   </div>
@@ -820,21 +849,33 @@ function Coordinator() {
                 <div className="detail-section full-width">
                   <h3>Job Description</h3>
                   <div className="description-box">
-                    {selectedJob.description}
+                    {selectedJob.description || 'No description provided'}
                   </div>
                 </div>
 
                 <div className="detail-section full-width">
                   <h3>Requirements</h3>
                   <div className="requirements-box">
-                    {selectedJob.requirements}
+                    {selectedJob.requirements || 'No specific requirements listed'}
                   </div>
                 </div>
 
                 <div className="detail-section full-width">
                   <h3>Targeted Programs</h3>
                   <div className="departments-list">
-                    {selectedJob.courses?.join(', ') || 'No specific programs targeted'}
+                    {selectedJob.courses && selectedJob.courses.length > 0 ? (
+                      <div>
+                        {selectedJob.courses.map((course, index) => (
+                          <div key={index} style={{
+                            padding: '8px 0',
+                            /* ADDED: Separator between courses */
+                            borderBottom: index < selectedJob.courses.length - 1 ? '1px solid #e5e7eb' : 'none'
+                          }}>
+                            {course}
+                          </div>
+                        ))}
+                      </div>
+                    ) : 'No specific programs targeted'}
                   </div>
                 </div>
 
@@ -859,13 +900,14 @@ function Coordinator() {
                         <i className="fas fa-check"></i>
                         Approve Job Listing
                       </button>
+
                       <div className="reject-section">
                         <label>Rejection Reason (optional):</label>
                         <textarea
                           value={rejectionReason}
                           onChange={(e) => setRejectionReason(e.target.value)}
-                          placeholder="Provide reason for rejection..."
-                          rows="3"
+                          placeholder="Provide a clear reason for rejection to help the company improve their submission..." /* IMPROVED placeholder */
+                          rows="4" /* CHANGED: From 3 to 4 rows */
                           className="rejection-textarea"
                         />
                         <button

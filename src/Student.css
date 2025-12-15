@@ -386,24 +386,63 @@ body {
     border-top: 1px solid var(--border);
 }
  
-.btn-edit, .btn-delete {
-    flex: 1;
-    padding: 10px 16px;
-    border: none;
-    border-radius: 6px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    font-size: 14px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
+/* Student.css - Update button styles */
+.property-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
 }
- 
-.btn-edit {
-    background-color: var(--primary);
-    color: white;
+
+.property-actions .btn-delete {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 100px;
+  flex: 1;
+}
+
+.property-actions .btn-edit {
+  background-color: var(--primary);
+  color: white;
+  border: 1px solid var(--primary);
+}
+
+.property-actions .btn-edit:hover {
+  background-color: var(--primary-dark);
+  transform: translateY(-1px);
+}
+
+.property-actions .btn-delete {
+  background-color: transparent;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+.property-actions .btn-delete:hover {
+  background-color: var(--danger);
+  color: white;
+  transform: translateY(-1px);
+}
+
+/* Make sure View Job Details button looks consistent */
+.property-actions .btn-edit[onclick*="openJobModal"] {
+  background-color: #450000;
+  color: white;
+  border: 1px solid #450000;
+}
+
+.property-actions .btn-edit[onclick*="openJobModal"]:hover {
+  background-color: #5a0000;
 }
  
 .btn-edit:hover {
@@ -1084,4 +1123,278 @@ textarea.form-input {
   color: #333;
   margin-right: 5px;
 }
+}
+
+/* Add to your existing button styles */
+.btn-edit, .btn-delete {
+  padding: 8px 12px;
+  font-size: 13px;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+/* Make sure buttons have consistent width */
+.property-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border);
+}
+
+.property-actions .btn-edit,
+.property-actions .btn-delete {
+  flex: 1;
+  white-space: nowrap;
+}
+
+/* Specific styles for application status messages */
+.status-message {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.status-message[style*="color: green"] {
+  background: #d1fae5;
+  color: #065f46 !important;
+  border: 1px solid #a7f3d0;
+}
+
+.status-message[style*="color: #8B0000"] {
+  background: #f8d7da;
+  color: #721c24 !important;
+  border: 1px solid #f5c6cb;
+}
+
+/* Force override any conflicting styles from App.css */
+.student-app .btn-edit,
+.student-app .btn-delete,
+.property-actions .btn-edit,
+.property-actions .btn-delete {
+  background-color: var(--primary) !important;
+}
+
+/* Make sure buttons are visible */
+.btn-edit, .btn-delete {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: flex !important;
+}
+
+/* ===== ENHANCED TAB SWITCHER STYLES ===== */
+.tab-switcher {
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.tab-nav {
+  display: flex;
+  position: relative;
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e5e7eb;
+}
+
+.tab-button {
+  flex: 1;
+  position: relative;
+  padding: 16px 20px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-weight: 600;
+  color: #6b7280;
+  transition: all 0.3s ease;
+  border-radius: 10px;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.tab-button:hover {
+  color: #450000;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.tab-button.active {
+  color: #450000;
+}
+
+.tab-button-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  z-index: 2;
+  white-space: nowrap; /* This keeps text on one line */
+}
+
+.tab-icon {
+  font-size: 18px;
+  transition: all 0.3s ease;
+  flex-shrink: 0; /* Prevents icon from shrinking */
+}
+
+.tab-button.active .tab-icon {
+  transform: scale(1.1);
+}
+
+.tab-text {
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  font-size: 16px;
+  white-space: nowrap; /* Forces text to stay on one line */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0; /* Prevents text from shrinking */
+}
+
+.tab-badge {
+  background: rgba(69, 0, 0, 0.1);
+  color: #450000;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  min-width: 28px;
+  text-align: center;
+  transition: all 0.3s ease;
+  flex-shrink: 0; /* Prevents badge from shrinking */
+}
+
+.tab-button.active .tab-badge {
+  background: rgba(255, 215, 0, 0.2);
+  color: #450000;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.tab-slider {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(69, 0, 0, 0.15);
+  transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  z-index: 0;
+}
+
+/* Mobile responsiveness for tabs */
+@media (max-width: 768px) {
+  .tab-switcher {
+    max-width: 100%;
+  }
+  
+  .tab-button {
+    padding: 14px 12px; /* Reduced padding on mobile */
+  }
+  
+  .tab-button-content {
+    gap: 8px;
+    flex-wrap: nowrap; /* Prevent wrapping */
+  }
+  
+  .tab-text {
+    font-size: 14px;
+    max-width: 120px; /* Limit width but keep on one line */
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .tab-badge {
+    font-size: 12px;
+    padding: 3px 8px;
+    min-width: 24px;
+  }
+  
+  /* For very small screens */
+  @media (max-width: 480px) {
+    .tab-text {
+      font-size: 13px;
+      max-width: 100px;
+    }
+    
+    .tab-button {
+      padding: 12px 8px;
+    }
+    
+    .tab-button-content {
+      gap: 6px;
+    }
+  }
+}
+/* === FIX FOR BUTTON VISIBILITY === */
+
+/* Make sure property-actions is visible */
+.property-actions {
+  display: flex !important;
+  gap: 10px !important;
+  margin-top: 20px !important;
+  padding-top: 15px !important;
+  border-top: 1px solid #e5e7eb !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Button base styles */
+.property-actions .btn-edit,
+.property-actions .btn-delete {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  padding: 8px 16px !important;
+  border-radius: 6px !important;
+  font-weight: 500 !important;
+  font-size: 14px !important;
+  cursor: pointer !important;
+  transition: all 0.2s !important;
+  min-width: 120px !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  border: 1px solid !important;
+}
+
+/* Edit button */
+.property-actions .btn-edit {
+  background-color: #450000 !important;
+  color: white !important;
+  border-color: #450000 !important;
+}
+
+.property-actions .btn-edit:hover {
+  background-color: #5a0000 !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Delete button */
+.property-actions .btn-delete {
+  background-color: transparent !important;
+  color: #8B0000 !important;
+  border-color: #8B0000 !important;
+}
+
+.property-actions .btn-delete:hover {
+  background-color: #8B0000 !important;
+  color: white !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Override any conflicting styles */
+.property-card .property-actions,
+.property-content .property-actions {
+  display: flex !important;
 }

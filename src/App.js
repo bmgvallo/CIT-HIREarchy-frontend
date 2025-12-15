@@ -65,8 +65,8 @@ function App() {
   });
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [filteredCourses, setFilteredCourses] = useState([]);
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  // const [notifications, setNotifications] = useState([]);
+  // const [unreadCount, setUnreadCount] = useState(0);
   const [jobs, setJobs] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -236,7 +236,7 @@ function App() {
   };
 
   // Fetch notifications
-  const fetchNotifications = useCallback(async () => {
+  /*const fetchNotifications = useCallback(async () => {
     try {
       const mockNotifications = [
         {
@@ -263,6 +263,8 @@ function App() {
     }
   }, []);
 
+  */
+
   // Fetch initial data
   useEffect(() => {
     fetchCompanyData();
@@ -271,9 +273,9 @@ function App() {
   useEffect(() => {
     if (user?.id) {
       fetchJobs();
-      fetchNotifications();
+      // fetchNotifications();
     }
-  }, [user?.id, fetchJobs, fetchNotifications]);
+  }, [user?.id, fetchJobs /*, fetchNotifications*/]);
 
   useEffect(() => {
     if (jobs.length === 0) return;
@@ -604,6 +606,7 @@ function App() {
   };
 
   // Notification handlers
+  /* 
   const markAsRead = async (notificationId) => {
     setNotifications(prev =>
       prev.map(n =>
@@ -619,6 +622,7 @@ function App() {
     );
     setUnreadCount(0);
   };
+  */
 
   // Logout
   const handleLogout = () => {
@@ -706,7 +710,8 @@ function App() {
           </div>
 
           <div className="header-right">
-            {/* Notifications */}
+
+            {/*
             <div className="notification-icon" onClick={() => setShowNotifications(!showNotifications)}>
               <i className="far fa-bell"></i>
               {unreadCount > 0 && <div className="notification-badge">{unreadCount}</div>}
@@ -756,7 +761,7 @@ function App() {
                 )}
               </div>
             )}
-
+*/}
             {/* User Dropdown */}
             <div className="user-info" onClick={() => setShowUserDropdown(!showUserDropdown)}>
               <div>
@@ -780,10 +785,6 @@ function App() {
                   </div>
                   <div className="user-dropdown-item">
                     <i className="fas fa-envelope"></i> {user.email || 'Email'}
-                  </div>
-                  <div className="user-dropdown-divider"></div>
-                  <div className="user-dropdown-item">
-                    <i className="fas fa-cog"></i> Settings
                   </div>
                   <div className="user-dropdown-divider"></div>
                   <div className="user-dropdown-item logout-item">
@@ -865,35 +866,6 @@ function App() {
             </div>
           </div>
 
-          <button
-            onClick={() => {
-              console.log('DEBUG: Current jobs data:', jobs);
-              jobs.forEach((job, i) => {
-                console.log(`Job ${i + 1}:`, {
-                  id: job.listingID,
-                  title: job.title,
-                  applicationCount: job.applicationCount,
-                  pendingCount: job.pendingCount,
-                  applications: job.applications
-                });
-              });
-            }}
-            style={{
-              background: '#666',
-              color: 'white',
-              border: 'none',
-              padding: '5px 10px',
-              borderRadius: '3px',
-              marginLeft: '10px',
-              cursor: 'pointer',
-              fontSize: '12px'
-            }}
-          >
-            Debug Counts
-          </button>
-
-          <div className="divider"></div>
-
           <div className="divider"></div>
 
           {/* Jobs Grid */}
@@ -908,6 +880,33 @@ function App() {
                         {job.status}
                       </div>
                     </div>
+                    <div className="company-info-section">
+                      <div className="property-location">
+                        <i className="fas fa-map-marker-alt"></i> {job.location} • {job.modality}
+                      </div>
+                      {job.company?.companyDescription && (
+                        <div className="company-description-preview">
+                          <strong>Company Overview:</strong> {job.company.companyDescription.length > 80
+                            ? `${job.company.companyDescription.substring(0, 80)}...`
+                            : job.company.companyDescription}
+                        </div>
+                      )}
+                      {job.company?.companyWebsite && (
+                        <div className="company-website-preview">
+                          <strong>Website: </strong>
+                          <a
+                            href={job.company.companyWebsite}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="company-website-link"
+                          >
+                            {job.company.companyWebsite}
+                          </a>
+                        </div>
+                      )}
+                    </div>
+
+
                     <div className="property-location">
                       <i className="fas fa-map-marker-alt"></i> {job.location} • {job.modality}
                     </div>
@@ -1419,9 +1418,10 @@ function App() {
       )}
 
       {/* Applications Modal */}
+      {/* Applications Modal */}
       {showApplicationsModal && selectedJobForApplications && (
         <div className="modal-overlay active">
-          <div className="modal" style={{ maxWidth: '1000px' }}>
+          <div className="modal" style={{ maxWidth: '1200px', width: '90vw' }}>
             <div className="modal-header">
               <h2 className="modal-title">Applications for {selectedJobForApplications.title}</h2>
               <button type="button" className="close-modal" onClick={() => setShowApplicationsModal(false)}>
@@ -1431,59 +1431,76 @@ function App() {
 
             <div className="modal-body">
               <div className="modal-subtitle">
-                Total: {selectedJobApplications.length} applications •
-                Pending: {selectedJobApplications.filter(app => app.status === 'PENDING').length}
+                <span className="count-badge">Total: {selectedJobApplications.length} applications</span>
+                <span className="pending-badge">
+                  Pending: {selectedJobApplications.filter(app => app.status === 'PENDING').length}
+                </span>
               </div>
 
-              {/* In the applications table in Company.js */}
-              <table className="applications-table">
-                <thead>
-                  <tr>
-                    <th>Student Name</th>
-                    <th>Program</th>
-                    <th>GPA</th> {/* Add this column */}
-                    <th>Applied Date</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedJobApplications.length > 0 ? (
-                    selectedJobApplications.map(application => (
-                      <tr key={application.applicationID}>
-                        <td>{application.student?.studName || 'N/A'}</td>
-                        <td>{application.student?.course || 'N/A'}</td>
-                        <td>
-                          {application.student?.studGPA ?
-                            application.student.studGPA.toFixed(2) : 'N/A'}
-                        </td> {/* Add this cell */}
-                        <td>{formatDate(application.applyDate)}</td>
-                        <td>
-                          <span className={`application-status status-${application.status?.toLowerCase()}`}>
-                            {application.status}
-                          </span>
-                        </td>
-                        <td>
-                          <div className="application-actions">
-                            <button
-                              className="btn-review"
-                              onClick={() => viewApplicationDetails(application)}
-                            >
-                              <i className="fas fa-eye"></i> Review
-                            </button>
+              <div className="applications-table-container">
+                <table className="applications-table">
+                  <thead>
+                    <tr>
+                      <th>Student Name</th>
+                      <th>Program</th>
+                      <th>GPA</th>
+                      <th>Applied Date</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedJobApplications.length > 0 ? (
+                      selectedJobApplications.map(application => (
+                        <tr key={application.applicationID}>
+                          <td data-label="Student Name">
+                            {application.student?.studName || 'N/A'}
+                          </td>
+                          <td data-label="Program">
+                            {application.student?.course || 'N/A'}
+                          </td>
+                          <td data-label="GPA">
+                            {application.student?.studGPA ?
+                              application.student.studGPA.toFixed(2) : 'N/A'}
+                          </td>
+                          <td data-label="Applied Date">
+                            {formatDate(application.applyDate)}
+                          </td>
+                          <td data-label="Status">
+                            <span className={`application-status status-${application.status?.toLowerCase()}`}>
+                              {application.status}
+                            </span>
+                          </td>
+                          <td data-label="Actions">
+                            <div className="application-actions">
+                              <button
+                                className="btn-review"
+                                onClick={() => viewApplicationDetails(application)}
+                              >
+                                <i className="fas fa-eye"></i> Review
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr className="empty-state">
+                        <td colSpan="6">
+                          <div style={{ textAlign: 'center', padding: '40px' }}>
+                            <i className="fas fa-inbox" style={{ fontSize: '48px', color: '#d1d5db', marginBottom: '16px' }}></i>
+                            <p style={{ fontSize: '16px', color: '#6b7280', marginBottom: '8px' }}>
+                              No applications yet for this job listing.
+                            </p>
+                            <p style={{ fontSize: '14px', color: '#9ca3af' }}>
+                              When students apply, their applications will appear here.
+                            </p>
                           </div>
                         </td>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan="6" style={{ textAlign: 'center', padding: '40px' }}>
-                        <p>No applications yet for this job listing.</p>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                    )}
+                  </tbody>
+                </table>
+              </div>
 
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowApplicationsModal(false)}>

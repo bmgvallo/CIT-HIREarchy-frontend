@@ -62,7 +62,7 @@
     padding: 12px 12px 12px 40px;
     border: 2px solid var(--border);
     border-radius: 8px;
-    font-size: 14px;
+    font-size: 17px;
     transition: all 0.2s;
     background-color: white;
 }
@@ -284,56 +284,242 @@
     margin: 0;
 }
 
-/* Admin Modal */
-.admin-modal {
-    width: 900px;
-    max-width: 95vw;
-}
 
+/* Job Details Modal Improvements */
 .job-details-grid {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: 25px;
+    padding: 10px;
 }
 
 .detail-section {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 16px;
+    gap: 15px;
     padding: 20px;
     background: #f8fafc;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-}
-
-.detail-section.full-width {
-    grid-template-columns: 1fr;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+    margin-bottom: 15px;
 }
 
 .detail-section h3 {
     grid-column: 1 / -1;
-    margin: 0 0 12px 0;
+    margin: 0 0 15px 0;
     color: var(--dark);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 600;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--primary-light);
 }
 
 .detail-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 16px;
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    align-items: center;
+    gap: 15px;
+    padding: 10px 0;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.detail-row:last-child {
+    border-bottom: none;
 }
 
 .detail-row label {
-    font-weight: 500;
-    color: var(--secondary);
-    min-width: 140px;
+    font-weight: 600;
+    color: #374151;
+    font-size: 14px;
 }
 
 .detail-row span {
-    flex: 1;
-    text-align: right;
+    color: #111827;
+    font-size: 15px;
+    text-align: left;
+}
+
+.salary-highlight {
+    color: var(--primary);
+    font-weight: 700;
+    font-size: 18px;
+}
+
+.description-box,
+.requirements-box,
+.rejection-reason,
+.departments-list {
+    background: white;
+    padding: 18px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    font-size: 15px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.departments-list {
+    font-weight: 500;
+    color: #374151;
+}
+
+/* Make full-width sections */
+.detail-section.full-width {
+    display: block;
+}
+
+/* Status badge in modal */
+.detail-row .status-badge {
+    display: inline-block;
+    padding: 6px 15px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Admin Action Buttons in Modal */
+.admin-action-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+}
+
+.btn-approve-large,
+.btn-reject-large {
+    padding: 14px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.btn-approve-large {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+}
+
+.btn-approve-large:hover {
+    background: linear-gradient(135deg, #059669, #047857);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+}
+
+.btn-approve-large:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.btn-reject-large {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+}
+
+.btn-reject-large:hover {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+}
+
+.btn-reject-large:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.reject-section {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    background: #fef2f2;
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid #fee2e2;
+}
+
+.reject-section label {
+    font-weight: 600;
+    color: var(--dark);
+    font-size: 15px;
+}
+
+.rejection-textarea {
+    width: 100%;
+    padding: 14px;
+    border: 2px solid #fecaca;
+    border-radius: 6px;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 100px;
+    font-size: 14px;
+    background: white;
+}
+
+.rejection-textarea:focus {
+    outline: none;
+    border-color: #f87171;
+    box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.1);
+}
+
+/* Make modal wider for better layout */
+.admin-modal {
+    width: 1000px;
+    max-width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .admin-modal {
+        width: 95vw;
+        margin: 10px;
+    }
+    
+    .detail-section {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    
+    .detail-row {
+        grid-template-columns: 1fr;
+        gap: 5px;
+    }
+    
+    .detail-row label {
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 5px;
+    }
+    
+    .detail-row span {
+        text-align: left;
+    }
+    
+    .admin-action-buttons {
+        gap: 15px;
+    }
+    
+    .btn-approve-large,
+    .btn-reject-large {
+        padding: 12px 20px;
+        font-size: 14px;
+    }
 }
 
 .salary-highlight {
@@ -361,73 +547,6 @@
     font-weight: 500;
 }
 
-/* Admin Action Buttons in Modal */
-.admin-action-buttons {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
-
-.btn-approve-large,
-.btn-reject-large {
-    padding: 12px 24px;
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-}
-
-.btn-approve-large {
-    background: var(--success);
-    color: white;
-}
-
-.btn-approve-large:hover {
-    background: #059669;
-    transform: translateY(-2px);
-}
-
-.btn-reject-large {
-    background: var(--danger);
-    color: white;
-}
-
-.btn-reject-large:hover {
-    background: #a00;
-    transform: translateY(-2px);
-}
-
-.reject-section {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.reject-section label {
-    font-weight: 500;
-    color: var(--dark);
-}
-
-.rejection-textarea {
-    width: 100%;
-    padding: 12px;
-    border: 2px solid var(--border);
-    border-radius: 6px;
-    font-family: inherit;
-    resize: vertical;
-    min-height: 80px;
-}
-
-.rejection-textarea:focus {
-    outline: none;
-    border-color: var(--danger);
-}
 
 /* Admin Header Styles */
 .admin-actions {
