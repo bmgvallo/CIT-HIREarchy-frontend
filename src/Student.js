@@ -1,54 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './Student.css';
 
-// CIT-U Courses Constants
-//const CIT_U_COURSES = {
-/*CEA: [
-  'BS Architecture',
-  'BS Chemical Engineering',
-  'BS Civil Engineering',
-  'BS Computer Engineering',
-  'BS Electrical Engineering',
-  'BS Electronics Engineering',
-  'BS Industrial Engineering',
-  'BS Mechanical Engineering',
-  'BS Mining Engineering'
-],
-CMBA: [
-  'BS Accountancy',
-  'BS Accounting Information Systems',
-  'BS Management Accounting',
-  'BS Business Administration',
-  'BS Hospitality Management',
-  'BS Tourism Management',
-  'BS Office Administration',
-  'Bachelor in Public Administration'
-],
-CASE: [
-  'AB Communication',
-  'AB English with Applied Linguistics',
-  'Bachelor of Elementary Education',
-  'Bachelor of Secondary Education',
-  'Bachelor of Multimedia Arts',
-  'BS Biology',
-  'BS Math with Applied Industrial Mathematics',
-  'BS Psychology'
-],
-CNAHS: [
-  'BS Nursing',
-  'BS Pharmacy',
-  'BS Medical Technology'
-],
-CCS: [
-  'BS Information Technology',
-  'BS Computer Science'
-],
-CCJ: [
-  'BS Criminology'
-]
-//};
-*/
-
 function Student() {
   // State management
   const [student, setStudent] = useState({
@@ -56,11 +8,13 @@ function Student() {
     email: '',
     course: '',
     studYrLevel: '',
+    studGPA: null,
+    resumeURL: '',
     id: null
   });
 
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  // const [notifications, setNotifications] = useState([]);
+  // const [unreadCount, setUnreadCount] = useState(0);
   const [applications, setApplications] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -73,12 +27,22 @@ function Student() {
   const [loading, setLoading] = useState(false);
   const [studentId, setStudentId] = useState(null);
 
+
   // Application form state
   const [applicationForm, setApplicationForm] = useState({
     internshipListing: { listingID: null },
     coverLetter: '',
     resumeURL: '',
-    additionalInfo: ''
+  });
+
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    studName: '',
+    email: '',
+    course: '',
+    studYrLevel: '',
+    studGPA: '',
+    resumeURL: ''
   });
 
   // Stats
@@ -100,11 +64,29 @@ function Student() {
         const userData = JSON.parse(savedUser);
         console.log('Student data:', userData);
 
+        // Check if we need to fetch fresh data with GPA
+        if (!userData.studGPA && userData.id) {
+          try {
+            const response = await fetch(`http://localhost:8080/api/students/${userData.id}`);
+            if (response.ok) {
+              const freshData = await response.json();
+              console.log('Fresh student data with GPA:', freshData);
+              // Update localStorage
+              localStorage.setItem('user', JSON.stringify(freshData));
+              userData.studGPA = freshData.studGPA;
+            }
+          } catch (error) {
+            console.error('Error fetching student details:', error);
+          }
+        }
+
         setStudent({
           studName: userData.studName || userData.username || '',
           email: userData.email || '',
           course: userData.course || userData.studProgram || '',
           studYrLevel: userData.studYrLevel || '',
+          studGPA: userData.studGPA || null,
+          resumeURL: userData.resumeURL || '',
           id: userData.id
         });
         setStudentId(userData.id);
@@ -126,16 +108,14 @@ function Student() {
         // Get the student's application IDs
         const studentApplicationIds = applications.map(app =>
           app.internshipListing?.listingID
-        ).filter(id => id); // Remove undefined/null
+        ).filter(id => id);
 
         console.log('Student has applied to job IDs:', studentApplicationIds);
 
         // Filter listings:
-        // 1. Must be approved
-        // 2. Must match student's course
-        // 3. Student must NOT have already applied
         const filteredListings = allListings.filter(listing => {
-          const isApproved = listing.status === 'approved';
+          const status = listing.status || 'pending';
+          const isApproved = status.toLowerCase() === 'approved';
           const matchesCourse = listing.courses && listing.courses.includes(student.course);
           const notApplied = !studentApplicationIds.includes(listing.listingID);
 
@@ -152,7 +132,7 @@ function Student() {
       console.error('Error fetching job listings:', error);
       setJobListings([]);
     }
-  }, [student.course, applications]); // Add applications to dependencies
+  }, [student.course, applications]);
 
   // Fetch applications
   const fetchApplications = useCallback(async () => {
@@ -176,6 +156,10 @@ function Student() {
         const data = await response.json();
         console.log('Fetched applications:', data);
 
+        data.forEach(app => {
+          console.log(`App ${app.applicationID || app.id}: Status = ${app.status}, Pending = ${app.status === 'PENDING'}`);
+        });
+
         // Make sure applications have the right structure
         const formattedApplications = data.map(app => ({
           applicationID: app.applicationID || app.id,
@@ -183,20 +167,12 @@ function Student() {
           status: app.status || app.applicationStatus,
           coverLetter: app.coverLetter || '',
           resumeURL: app.resumeURL || app.resume,
-          additionalInfo: app.additionalInfo || '',
           internshipListing: app.internshipListing || {},
           student: app.student || {}
         }));
 
         console.log('Formatted applications:', formattedApplications);
         setApplications(formattedApplications);
-
-        // Log counts by status
-        const pendingCount = formattedApplications.filter(app => app.status === 'PENDING').length;
-        const approvedCount = formattedApplications.filter(app => app.status === 'APPROVED').length;
-        const rejectedCount = formattedApplications.filter(app => app.status === 'REJECTED').length;
-        console.log(`Stats: ${pendingCount} pending, ${approvedCount} approved, ${rejectedCount} rejected`);
-
       } else {
         console.error('Failed to fetch applications:', response.status);
         const errorText = await response.text();
@@ -210,7 +186,7 @@ function Student() {
   }, [studentId]);
 
   // Fetch notifications
-  const fetchNotifications = useCallback(async () => {
+  /*const fetchNotifications = useCallback(async () => {
     try {
       const mockNotifications = [
         {
@@ -234,6 +210,7 @@ function Student() {
       console.error('Error fetching notifications:', error);
     }
   }, []);
+  */
 
   // Fetch initial data
   useEffect(() => {
@@ -243,9 +220,9 @@ function Student() {
   useEffect(() => {
     if (studentId) {
       fetchApplications();
-      fetchNotifications();
+      // fetchNotifications();
     }
-  }, [studentId, fetchApplications, fetchNotifications]);
+  }, [studentId, fetchApplications, /*fetchNotifications*/]);
 
   useEffect(() => {
     if (student.course) {
@@ -265,8 +242,7 @@ function Student() {
     setApplicationForm({
       internshipListing: { listingID: job.listingID },
       coverLetter: '',
-      resumeURL: student.resumeURL || '',
-      additionalInfo: ''
+      resumeURL: student.resumeURL || ''
     });
     setShowModal(true);
   };
@@ -276,8 +252,7 @@ function Student() {
     setApplicationForm({
       internshipListing: { listingID: null },
       coverLetter: '',
-      resumeURL: '',
-      additionalInfo: ''
+      resumeURL: ''
     });
   };
 
@@ -307,17 +282,34 @@ function Student() {
     setLoading(true);
 
     try {
+      // Validate required fields
+      if (!applicationForm.coverLetter.trim()) {
+        showNotification('Please provide a cover letter', 'error');
+        setLoading(false);
+        return;
+      }
+
+      if (!applicationForm.resumeURL.trim()) {
+        showNotification('Please provide a resume URL', 'error');
+        setLoading(false);
+        return;
+      }
+
       const applicationData = {
         internshipListing: { listingID: applicationForm.internshipListing.listingID },
         student: { id: studentId },
         applyDate: new Date().toISOString().split('T')[0],
-        status: 'pending',
+        status: 'PENDING',
         coverLetter: applicationForm.coverLetter,
-        resumeURL: applicationForm.resumeURL,
-        additionalInfo: applicationForm.additionalInfo
+        resumeURL: applicationForm.resumeURL
       };
 
-      console.log('Submitting application:', applicationData);
+      console.log('Submitting application data:', {
+        listingID: applicationForm.internshipListing.listingID,
+        studentId: studentId,
+        coverLetterLength: applicationForm.coverLetter?.length,
+        resumeURL: applicationForm.resumeURL
+      });
 
       const response = await fetch('http://localhost:8080/api/applications', {
         method: 'POST',
@@ -327,8 +319,16 @@ function Student() {
         body: JSON.stringify(applicationData)
       });
 
+      console.log('Response status:', response.status);
+
       if (response.ok) {
         const savedApplication = await response.json();
+        console.log('Application saved successfully:', {
+          id: savedApplication.applicationID,
+          resumeURL: savedApplication.resumeURL,
+          coverLetter: savedApplication.coverLetter ? 'Present' : 'Missing',
+          status: savedApplication.status
+        });
 
         // 1. Add to applications list
         setApplications(prev => [...prev, savedApplication]);
@@ -348,18 +348,103 @@ function Student() {
         setActiveTab('applications');
       } else {
         const errorText = await response.text();
+        console.error('Server error:', errorText);
         showNotification(`Error submitting application: ${errorText}`, 'error');
       }
     } catch (error) {
-      console.error('Error submitting application:', error);
-      showNotification('Error submitting application', 'error');
+      console.error('Network error submitting application:', error);
+      showNotification('Network error submitting application. Please check your connection.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openProfileModal = () => {
+    setProfileForm({
+      studName: student.studName || '',
+      email: student.email || '',
+      course: student.course || '',
+      studYrLevel: student.studYrLevel || '',
+      studGPA: student.studGPA || '',
+      resumeURL: student.resumeURL || ''
+    });
+    setShowProfileModal(true);
+  };
+
+  const updateProfile = async () => {
+    setLoading(true);
+    try {
+      // Validate GPA if provided
+      if (profileForm.studGPA && (parseFloat(profileForm.studGPA) < 0 || parseFloat(profileForm.studGPA) >= 5)) {
+        showNotification('GPA must be between 0 and 5', 'error');
+        setLoading(false);
+        return;
+      }
+
+      const profileData = {
+        studName: profileForm.studName,
+        email: profileForm.email,
+        course: profileForm.course,
+        studYrLevel: profileForm.studYrLevel,
+        studGPA: profileForm.studGPA ? parseFloat(profileForm.studGPA) : null,
+        resumeURL: profileForm.resumeURL
+      };
+
+      console.log('Updating profile with data:', profileData);
+
+      const response = await fetch(`http://localhost:8080/api/students/${studentId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(profileData)
+      });
+
+      if (response.ok) {
+        const updatedStudent = await response.json();
+        console.log('Profile updated successfully:', updatedStudent);
+
+        // Update local state
+        setStudent({
+          ...student,
+          studName: updatedStudent.studName,
+          email: updatedStudent.email,
+          course: updatedStudent.course,
+          studYrLevel: updatedStudent.studYrLevel,
+          studGPA: updatedStudent.studGPA,
+          resumeURL: updatedStudent.resumeURL
+        });
+
+        // Update localStorage
+        const savedUser = localStorage.getItem('user');
+        if (savedUser) {
+          const userData = JSON.parse(savedUser);
+          userData.studName = updatedStudent.studName;
+          userData.email = updatedStudent.email;
+          userData.course = updatedStudent.course;
+          userData.studYrLevel = updatedStudent.studYrLevel;
+          userData.studGPA = updatedStudent.studGPA;
+          userData.resumeURL = updatedStudent.resumeURL;
+          localStorage.setItem('user', JSON.stringify(userData));
+        }
+
+        setShowProfileModal(false);
+        showNotification('Profile updated successfully!', 'success');
+      } else {
+        const errorText = await response.text();
+        console.error('Server error:', errorText);
+        showNotification(`Error updating profile: ${errorText}`, 'error');
+      }
+    } catch (error) {
+      console.error('Network error updating profile:', error);
+      showNotification('Network error updating profile. Please check your connection.', 'error');
     } finally {
       setLoading(false);
     }
   };
 
   // Notification handlers
-  const markAsRead = async (notificationId) => {
+  /*const markAsRead = async (notificationId) => {
     setNotifications(prev =>
       prev.map(n =>
         n.id === notificationId ? { ...n, is_read: true } : n
@@ -374,14 +459,18 @@ function Student() {
     );
     setUnreadCount(0);
   };
+  */
 
-  // Withdraw application
   // Withdraw application
   const withdrawApplication = async (applicationId) => {
-    // Find the application in current state to check status
     const application = applications.find(app => app.applicationID === applicationId);
+    // Check if application is approved or rejected
+    const status = application?.status?.toLowerCase();
+    if (status === 'approved' || status === 'rejected') {
+      showNotification(`Cannot withdraw an ${status} application`, 'error');
+      return;
+    }
 
-    // Prevent withdrawal of approved/rejected applications from frontend
     if (application && application.status !== 'PENDING') {
       showNotification('Cannot withdraw an application that has already been approved or rejected', 'error');
       return;
@@ -398,21 +487,15 @@ function Student() {
         console.log('Delete response status:', response.status);
 
         if (response.ok || response.status === 204) {
-          // Success - remove from UI
           setApplications(prev => prev.filter(app => app.applicationID !== applicationId));
           showNotification('Application withdrawn successfully', 'success');
         } else if (response.status === 409) {
-          // Conflict - application not pending
           const errorData = await response.json();
           console.log('Conflict error:', errorData);
           showNotification(errorData.message || 'Cannot withdraw this application', 'error');
-
-          // Refresh applications to get current status
           fetchApplications();
         } else if (response.status === 404) {
-          // Not found - might have been deleted already
           showNotification('Application not found', 'error');
-          // Refresh applications list
           fetchApplications();
         } else {
           const errorText = await response.text();
@@ -475,11 +558,10 @@ function Student() {
     switch (statusLower) {
       case 'approved': return 'Approved';
       case 'pending': return 'Under Review';
-      case 'rejected': return 'Not Selected';
+      case 'rejected': return 'Rejected';
       default: return status;
     }
   };
-
 
   const handleLogout = () => {
     localStorage.clear();
@@ -491,74 +573,51 @@ function Student() {
   };
 
   // Tab switcher component
+  // Tab switcher component - Enhanced
   const TabSwitcher = () => (
     <div className="tab-switcher">
-      <button
-        className={`tab-button ${activeTab === 'applications' ? 'active' : ''}`}
-        onClick={() => setActiveTab('applications')}
-      >
-        My Applications
-      </button>
-      <button
-        className={`tab-button ${activeTab === 'jobs' ? 'active' : ''}`}
-        onClick={() => setActiveTab('jobs')}
-      >
-        Browse Internships
-      </button>
+      <div className="tab-nav">
+        <button
+          className={`tab-button ${activeTab === 'applications' ? 'active' : ''}`}
+          onClick={() => setActiveTab('applications')}
+        >
+          <div className="tab-button-content">
+            <i className="fas fa-file-alt tab-icon"></i>
+            <span className="tab-text">My Applications</span>
+            <span className="tab-badge">{totalApplications}</span>
+          </div>
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'jobs' ? 'active' : ''}`}
+          onClick={() => setActiveTab('jobs')}
+        >
+          <div className="tab-button-content">
+            <i className="fas fa-search tab-icon"></i>
+            <span className="tab-text">Browse Internships</span>
+            <span className="tab-badge">{jobListings.length}</span>
+          </div>
+        </button>
+        <div className="tab-slider" style={{
+          transform: `translateX(${activeTab === 'applications' ? '0%' : '100%'})`,
+          width: '50%'
+        }}></div>
+      </div>
     </div>
   );
 
-  // Add this CSS to your Student.css
-  const tabSwitcherStyles = `
-    .tab-switcher {
-      display: flex;
-      gap: 10px;
-      margin-top: 15px;
-    }
-    
-    .tab-button {
-      padding: 10px 20px;
-      border: 2px solid var(--primary);
-      background: white;
-      color: var(--primary);
-      border-radius: 5px;
-      cursor: pointer;
-      font-weight: 600;
-      transition: all 0.3s;
-    }
-    
-    .tab-button.active {
-      background: var(--primary);
-      color: white;
-    }
-    
-    .tab-button:hover:not(.active) {
-      background: #f5f5f5;
-    }
-    
-    .program-filter {
-      background: #f8f9fa;
-      padding: 10px 15px;
-      border-radius: 5px;
-      margin: 15px 0;
-      border: 1px solid #dee2e6;
-    }
-    
-    .program-tag {
-      background: var(--primary);
-      color: white;
-      padding: 4px 8px;
-      border-radius: 3px;
-      font-size: 12px;
-      margin: 2px;
-      display: inline-block;
-    }
-  `;
-
   return (
     <div className="App">
-      {/* Add inline styles for new components */}
-      <style>{tabSwitcherStyles}</style>
+      <style>{`
+      /* Debug styles - remove after testing */
+      .property-actions {
+        display: flex !important;
+        gap: 10px !important;
+        margin-top: 20px !important;
+        padding-top: 15px !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+      }
+    `}</style>
 
       {/* Header */}
       <div className="header-container">
@@ -568,7 +627,7 @@ function Student() {
           </div>
 
           <div className="header-right">
-            {/* Notifications */}
+            {/* 
             <div className="notification-icon" onClick={() => setShowNotifications(!showNotifications)}>
               <i className="far fa-bell"></i>
               {unreadCount > 0 && <div className="notification-badge">{unreadCount}</div>}
@@ -618,6 +677,8 @@ function Student() {
               </div>
             )}
 
+             */}
+
             {/* User Dropdown */}
             <div className="user-info" onClick={() => setShowUserDropdown(!showUserDropdown)}>
               <div>{student.studName || 'Student'}</div>
@@ -632,12 +693,15 @@ function Student() {
                   <div className="user-dropdown-item">
                     <i className="fas fa-graduation-cap"></i> {student.course}
                   </div>
-                  <div className="user-dropdown-item">
-                    <i className="fas fa-cog"></i> Settings
+                  <div className="user-dropdown-item" onClick={openProfileModal}>
+                    <i className="fas fa-user-edit"></i> Edit Profile
                   </div>
                   <div className="user-dropdown-divider"></div>
-                  <div className="user-dropdown-item">
-                    <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
+                  <div className="user-dropdown-item logout-item">
+                    <button
+                      onClick={handleLogout}
+                      className="logout-btn"
+                    >
                       <i className="fas fa-sign-out-alt"></i> Logout
                     </button>
                   </div>
@@ -713,7 +777,7 @@ function Student() {
                   className={`filter-item ${activeFilter === 'rejected' ? 'active' : ''}`}
                   onClick={() => setActiveFilter('rejected')}
                 >
-                  Not Selected ({rejectedApplications})
+                  Rejected ({rejectedApplications})
                 </div>
               </div>
 
@@ -725,16 +789,16 @@ function Student() {
           {activeTab === 'applications' ? (
             <>
               {/* Applications Grid */}
-              {/* Applications Grid */}
               <div className="properties-container">
                 {filteredApplications.length > 0 ? (
                   filteredApplications.map(application => {
-                    // Debug log
-                    console.log('Application data:', application);
-
-                    // Check if internshipListing exists
+                    console.log('Rendering application:', {
+                      id: application.applicationID,
+                      status: application.status,
+                      hasJob: !!application.internshipListing,
+                      title: application.internshipListing?.title
+                    });
                     if (!application.internshipListing || Object.keys(application.internshipListing).length === 0) {
-                      console.log('Missing internshipListing for application:', application.applicationID);
                       return (
                         <div key={application.applicationID} className="property-card">
                           <div className="property-content">
@@ -751,24 +815,11 @@ function Student() {
                               <span>Applied: {formatDate(application.applyDate)}</span>
                             </div>
                             <div className="property-actions">
-                              <button className="btn-edit" onClick={() => openJobModal(job)}>
-                                <i className="fas fa-eye"></i> View Job Details
-                              </button>
+                              {/* REMOVE View Job Details button since there's no job to view */}
                               {application.status?.toLowerCase() === 'pending' && (
                                 <button className="btn-delete" onClick={() => withdrawApplication(application.applicationID)}>
                                   <i className="fas fa-times"></i> Withdraw
                                 </button>
-                              )}
-                              {/* Show different message for approved/rejected applications */}
-                              {application.status?.toLowerCase() === 'approved' && (
-                                <span className="status-message" style={{ color: 'green', fontWeight: 'bold' }}>
-                                  ✓ Application Approved
-                                </span>
-                              )}
-                              {application.status?.toLowerCase() === 'rejected' && (
-                                <span className="status-message" style={{ color: '#8B0000', fontWeight: 'bold' }}>
-                                  ✗ Application Not Selected
-                                </span>
                               )}
                             </div>
                           </div>
@@ -814,12 +865,27 @@ function Student() {
                             <span className="price-period">/month</span>
                           </div>
 
+                          {/* In your application rendering, update the property-actions for non-pending apps */}
                           <div className="property-actions">
                             <button className="btn-edit" onClick={() => openJobModal(job)}>
-                              <i className="fas fa-eye"></i> View Job Details
+                              <i className="fas fa-eye"></i> View
                             </button>
-                            {application.status === 'PENDING' && (
+
+                            {/* Conditional buttons based on status */}
+                            {application.status?.toLowerCase() === 'pending' ? (
                               <button className="btn-delete" onClick={() => withdrawApplication(application.applicationID)}>
+                                <i className="fas fa-times"></i> Withdraw
+                              </button>
+                            ) : (
+                              <button
+                                className="btn-delete disabled-btn"
+                                disabled
+                                title={`Cannot withdraw ${application.status?.toLowerCase()} application`}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  showNotification(`Cannot withdraw ${application.status?.toLowerCase()} application`, 'error');
+                                }}
+                              >
                                 <i className="fas fa-times"></i> Withdraw
                               </button>
                             )}
@@ -837,31 +903,6 @@ function Student() {
             </>
           ) : (
             <>
-              {/* Job Listings Stats */}
-              <div className="stats-container">
-                <div className="stat-card">
-                  <div className="stat-number">{jobListings.length}</div>
-                  <div className="stat-label">Available Internships</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-number">
-                    {jobListings.filter(job => job.modality === 'Remote').length}
-                  </div>
-                  <div className="stat-label">Remote Opportunities</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-number">
-                    {jobListings.filter(job => job.modality === 'Hybrid').length}
-                  </div>
-                  <div className="stat-label">Hybrid Positions</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-number">
-                    {jobListings.filter(job => job.salary && job.salary >= 20000).length}
-                  </div>
-                  <div className="stat-label">High-Paying Roles</div>
-                </div>
-              </div>
 
               <div className="program-filter">
                 <strong>Showing internships for:</strong> {student.course || 'Your Program'}
@@ -880,6 +921,32 @@ function Student() {
                           <div className={`property-status-badge active`}>
                             Active
                           </div>
+                        </div>
+
+                        <div className="company-info-section">
+                          <div className="company-name">
+                            <i className="fas fa-building"></i> {job.company?.companyName || 'Company'} • {job.location}
+                          </div>
+                          {job.company?.companyDescription && (
+                            <div className="company-description-preview">
+                              <strong>Company Overview: </strong> {job.company.companyDescription.length > 80
+                                ? `${job.company.companyDescription.substring(0, 80)}...`
+                                : job.company.companyDescription}
+                            </div>
+                          )}
+                          {job.company?.companyWebsite && (
+                            <div className="company-website-preview">
+                              <strong>Website: </strong>
+                              <a
+                                href={job.company.companyWebsite}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="company-website-link"
+                              >
+                                {job.company.companyWebsite}
+                              </a>
+                            </div>
+                          )}
                         </div>
                         <div className="property-location">
                           <i className="fas fa-building"></i> {job.company?.companyName || 'Company'} • {job.location}
@@ -991,6 +1058,7 @@ function Student() {
       </div>
 
       {/* Application Modal */}
+      {/* Application Modal */}
       {showModal && (
         <div className="modal-overlay active">
           <div className="modal">
@@ -1031,18 +1099,7 @@ function Student() {
                       onChange={handleInputChange}
                       className="form-input"
                       placeholder="https://drive.google.com/your-resume.pdf"
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Additional Information</label>
-                    <textarea
-                      name="additionalInfo"
-                      value={applicationForm.additionalInfo}
-                      onChange={handleInputChange}
-                      className="form-input"
-                      rows="3"
-                      placeholder="Any additional information you'd like to share with the employer..."
+                      required
                     />
                   </div>
                 </div>
@@ -1050,7 +1107,7 @@ function Student() {
                 {/* Student Information Preview */}
                 <div className="form-section">
                   <h3 className="section-title">Your Information</h3>
-                  <div className="stat-card">
+                  <div className="student-info-card">
                     <div className="form-row">
                       <div className="half-width">
                         <strong>Name:</strong> {student.studName}
@@ -1063,6 +1120,11 @@ function Student() {
                       <div className="half-width">
                         <strong>Year Level:</strong> {student.studYrLevel}
                       </div>
+                      <div className="half-width">
+                        <strong>GPA:</strong> {student.studGPA ? student.studGPA.toFixed(2) : 'Not specified'}
+                      </div>
+                    </div>
+                    <div className="form-row">
                       <div className="half-width">
                         <strong>Email:</strong> {student.email}
                       </div>
@@ -1084,6 +1146,7 @@ function Student() {
         </div>
       )}
 
+    
       {/* Job Details Modal */}
       {showJobModal && selectedJob && (
         <div className="modal-overlay active">
@@ -1096,6 +1159,39 @@ function Student() {
             </div>
 
             <div className="modal-body">
+
+              <div className="company-details-section">
+                <h3 className="section-title">Company Information</h3>
+                <div className="company-details-card">
+                  <div className="company-detail-row">
+                    <strong>Company Name:</strong> {selectedJob.company?.companyName || 'Not specified'}
+                  </div>
+                  {selectedJob.company?.companyDescription && (
+                    <div className="company-detail-row">
+                      <strong>About Us:</strong> {selectedJob.company.companyDescription}
+                    </div>
+                  )}
+                  {selectedJob.company?.companyWebsite && (
+                    <div className="company-detail-row">
+                      <strong>Website:</strong>
+                      <a
+                        href={selectedJob.company.companyWebsite}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="company-website-link-modal"
+                      >
+                        <i className="fas fa-external-link-alt"></i> {selectedJob.company.companyWebsite}
+                      </a>
+                    </div>
+                  )}
+                  {selectedJob.company?.contactPerson && (
+                    <div className="company-detail-row">
+                      <strong>Contact Person:</strong> {selectedJob.company.contactPerson}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="job-details-section">
                 <div className="job-basic-info">
                   <div className="info-row">
@@ -1173,9 +1269,135 @@ function Student() {
             </div>
           </div>
         </div>
-      )}      </div>
-  )
-}
+      )}
 
+      {/* Profile Edit Modal */}
+      {showProfileModal && (
+        <div className="modal-overlay active">
+          <div className="modal">
+            <div className="modal-header">
+              <h2 className="modal-title">Edit Profile</h2>
+              <button type="button" className="close-modal" onClick={() => setShowProfileModal(false)}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div className="form-section">
+                <div className="form-group">
+                  <label className="form-label">Full Name</label>
+                  <input
+                    type="text"
+                    name="studName"
+                    value={profileForm.studName}
+                    onChange={(e) => setProfileForm(prev => ({
+                      ...prev,
+                      studName: e.target.value
+                    }))}
+                    className="form-input"
+                    placeholder="Your full name"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Email</label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={profileForm.email}
+                    onChange={(e) => setProfileForm(prev => ({
+                      ...prev,
+                      email: e.target.value
+                    }))}
+                    className="form-input"
+                    placeholder="your.email@example.com"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Program/Course</label>
+                  <input
+                    type="text"
+                    name="course"
+                    value={profileForm.course}
+                    onChange={(e) => setProfileForm(prev => ({
+                      ...prev,
+                      course: e.target.value
+                    }))}
+                    className="form-input"
+                    placeholder="e.g., BS Information Technology"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Year Level</label>
+                  <select
+                    name="studYrLevel"
+                    value={profileForm.studYrLevel}
+                    onChange={(e) => setProfileForm(prev => ({
+                      ...prev,
+                      studYrLevel: e.target.value
+                    }))}
+                    className="form-input"
+                  >
+                    <option value="">Select year level</option>
+                    <option value="1st Year">1st Year</option>
+                    <option value="2nd Year">2nd Year</option>
+                    <option value="3rd Year">3rd Year</option>
+                    <option value="4th Year">4th Year</option>
+                    <option value="5th Year">5th Year</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">GPA</label>
+                  <input
+                    type="number"
+                    name="studGPA"
+                    value={profileForm.studGPA}
+                    onChange={(e) => setProfileForm(prev => ({
+                      ...prev,
+                      studGPA: e.target.value
+                    }))}
+                    className="form-input"
+                    placeholder="e.g., 3.75"
+                    min="0"
+                    max="5"
+                    step="0.01"
+                  />
+                  <small className="form-help-text">Enter your GPA (0.00 to 5.00)</small>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Resume URL</label>
+                  <input
+                    type="text"
+                    name="resumeURL"
+                    value={profileForm.resumeURL}
+                    onChange={(e) => setProfileForm(prev => ({
+                      ...prev,
+                      resumeURL: e.target.value
+                    }))}
+                    className="form-input"
+                    placeholder="https://drive.google.com/your-resume.pdf"
+                  />
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowProfileModal(false)} disabled={loading}>
+                  Cancel
+                </button>
+                <button type="button" className="btn btn-primary" onClick={updateProfile} disabled={loading}>
+                  {loading ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default Student;

@@ -63,9 +63,10 @@ function App() {
     id: null,
     companyID: null
   });
-
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [selectedDepartment, setSelectedDepartment] = useState('');
+  const [filteredCourses, setFilteredCourses] = useState([]);
+  // const [notifications, setNotifications] = useState([]);
+  // const [unreadCount, setUnreadCount] = useState(0);
   const [jobs, setJobs] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -152,9 +153,49 @@ function App() {
       const response = await fetch(`http://localhost:8080/api/listings/company/${companyId}`);
 
       if (response.ok) {
-        const data = await response.json();
-        console.log('Jobs fetched:', data);
-        setJobs(data);
+        const jobs = await response.json();
+        console.log('Jobs fetched:', jobs);
+
+        // For each job, fetch its applications
+        const jobsWithApplications = await Promise.all(
+          jobs.map(async (job) => {
+            try {
+              const applicationsResponse = await fetch(
+                `http://localhost:8080/api/applications/listing/${job.listingID}`
+              );
+
+              if (applicationsResponse.ok) {
+                const applications = await applicationsResponse.json();
+                return {
+                  ...job,
+                  applications: applications,
+                  applicationCount: applications.length,
+                  pendingCount: applications.filter(app =>
+                    app.status?.toLowerCase() === 'pending'
+                  ).length
+                };
+              } else {
+                return {
+                  ...job,
+                  applications: [],
+                  applicationCount: 0,
+                  pendingCount: 0
+                };
+              }
+            } catch (error) {
+              console.error(`Error fetching applications for job ${job.listingID}:`, error);
+              return {
+                ...job,
+                applications: [],
+                applicationCount: 0,
+                pendingCount: 0
+              };
+            }
+          })
+        );
+
+        console.log('Jobs with applications:', jobsWithApplications);
+        setJobs(jobsWithApplications);
       } else {
         console.error('Failed to fetch jobs:', response.status);
         setJobs([]);
@@ -165,8 +206,37 @@ function App() {
     }
   }, [user?.companyID, user?.id]);
 
+  // Refresh application counts for a specific job
+  const refreshJobApplications = async (jobId) => {
+    try {
+      const applicationsResponse = await fetch(
+        `http://localhost:8080/api/applications/listing/${jobId}`
+      );
+
+      if (applicationsResponse.ok) {
+        const applications = await applicationsResponse.json();
+
+        setJobs(prev => prev.map(job =>
+          job.listingID === jobId ? {
+            ...job,
+            applications: applications,
+            applicationCount: applications.length,
+            pendingCount: applications.filter(app =>
+              app.status?.toLowerCase() === 'pending'
+            ).length
+          } : job
+        ));
+
+        return applications;
+      }
+    } catch (error) {
+      console.error(`Error refreshing applications for job ${jobId}:`, error);
+    }
+    return [];
+  };
+
   // Fetch notifications
-  const fetchNotifications = useCallback(async () => {
+  /*const fetchNotifications = useCallback(async () => {
     try {
       const mockNotifications = [
         {
@@ -193,6 +263,8 @@ function App() {
     }
   }, []);
 
+  */
+
   // Fetch initial data
   useEffect(() => {
     fetchCompanyData();
@@ -201,9 +273,26 @@ function App() {
   useEffect(() => {
     if (user?.id) {
       fetchJobs();
-      fetchNotifications();
+      // fetchNotifications();
     }
-  }, [user?.id, fetchJobs, fetchNotifications]);
+  }, [user?.id, fetchJobs /*, fetchNotifications*/]);
+
+  useEffect(() => {
+    if (jobs.length === 0) return;
+
+    const interval = setInterval(() => {
+      console.log('Refreshing application counts...');
+
+      // Only refresh jobs that have applications
+      jobs.forEach(job => {
+        if (job.applicationCount > 0 || job.pendingCount > 0) {
+          refreshJobApplications(job.listingID);
+        }
+      });
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [jobs]); // Remove activeTab from dependencies
 
   // Modal handlers
   const openModal = () => {
@@ -226,6 +315,8 @@ function App() {
   const closeModal = () => {
     setShowModal(false);
     setEditingJobId(null);
+    setSelectedDepartment('');
+    setFilteredCourses([]);
     setFormData({
       title: '',
       description: '',
@@ -275,6 +366,16 @@ function App() {
 
       if (response.ok) {
         const applications = await response.json();
+        console.log('Fetched applications with details:', applications);
+
+        // Log each application's resume and cover letter
+        applications.forEach(app => {
+          console.log(`Application ${app.applicationID}:`, {
+            resumeURL: app.resumeURL,
+            coverLetter: app.coverLetter ? app.coverLetter.substring(0, 100) + '...' : 'None'
+          });
+        });
+
         setSelectedJobApplications(applications);
         setShowApplicationsModal(true);
       } else {
@@ -287,6 +388,10 @@ function App() {
   };
 
   const viewApplicationDetails = (application) => {
+    console.log('Viewing application details:', application);
+    console.log('Resume URL:', application.resumeURL);
+    console.log('Cover Letter:', application.coverLetter);
+
     setSelectedApplication(application);
     setApplicationFeedback(application.feedback || '');
     setShowApplicationDetailsModal(true);
@@ -310,20 +415,10 @@ function App() {
       if (response.ok) {
         const updatedApplication = await response.json();
 
-        // Update in local state
-        setJobs(prev => prev.map(job => {
-          if (job.listingID === selectedJobForApplications?.listingID && job.applications) {
-            return {
-              ...job,
-              applications: job.applications.map(app =>
-                app.applicationID === selectedApplication.applicationID
-                  ? updatedApplication
-                  : app
-              )
-            };
-          }
-          return job;
-        }));
+        // Refresh the application count for this job
+        if (selectedJobForApplications?.listingID) {
+          await refreshJobApplications(selectedJobForApplications.listingID);
+        }
 
         showNotification(`Application ${status.toLowerCase()} successfully`, 'success');
         setShowApplicationDetailsModal(false);
@@ -335,6 +430,8 @@ function App() {
       showNotification('Error updating application', 'error');
     }
   };
+
+
   const selectAllCoursesInDepartment = (department) => {
     const departmentCourses = CIT_U_COURSES[department] || [];
     setFormData(prev => {
@@ -380,7 +477,8 @@ function App() {
         duration: formData.duration,
         deadline: formData.deadline,
         salary: parseFloat(formData.salary),
-        status: "pending",
+        // CRITICAL CHANGE: If editing an approved job, set status back to pending
+        status: editingJobId ? "pending" : "pending", // Always set to pending when editing
         courses: formData.selectedCourses,
         company: { id: companyId }
       };
@@ -390,7 +488,11 @@ function App() {
       let response;
 
       if (editingJobId) {
-        // Update existing job
+        // Get the current job to check its status
+        const currentJob = jobs.find(job => job.listingID === editingJobId);
+        const wasApproved = currentJob?.status === 'approved';
+
+        // Update existing job - status will be set to pending above
         response = await fetch(`http://localhost:8080/api/listings/${editingJobId}`, {
           method: 'PUT',
           headers: {
@@ -405,7 +507,12 @@ function App() {
             job.listingID === editingJobId ? savedJob : job
           ));
           closeModal();
-          showNotification('Job listing updated successfully!', 'success');
+
+          if (wasApproved) {
+            showNotification('Job listing updated successfully! It has been sent back to the coordinator for re-approval.', 'success');
+          } else {
+            showNotification('Job listing updated successfully!', 'success');
+          }
         } else {
           const errorText = await response.text();
           showNotification(`Error updating job: ${errorText}`, 'error');
@@ -466,6 +573,21 @@ function App() {
 
   // Edit job
   const editJob = (job) => {
+    // Determine department from first selected course
+    let dept = '';
+    if (job.courses && job.courses.length > 0) {
+      // Find which department the first course belongs to
+      for (const [department, courses] of Object.entries(CIT_U_COURSES)) {
+        if (courses.includes(job.courses[0])) {
+          dept = department;
+          break;
+        }
+      }
+    }
+
+    setSelectedDepartment(dept);
+    setFilteredCourses(dept ? CIT_U_COURSES[dept] || [] : []);
+
     setFormData({
       title: job.title || '',
       description: job.description || '',
@@ -478,11 +600,13 @@ function App() {
       salary: job.salary || '',
       selectedCourses: job.courses || []
     });
+
     setEditingJobId(job.listingID);
     setShowModal(true);
   };
 
   // Notification handlers
+  /* 
   const markAsRead = async (notificationId) => {
     setNotifications(prev =>
       prev.map(n =>
@@ -498,6 +622,7 @@ function App() {
     );
     setUnreadCount(0);
   };
+  */
 
   // Logout
   const handleLogout = () => {
@@ -585,7 +710,8 @@ function App() {
           </div>
 
           <div className="header-right">
-            {/* Notifications */}
+
+            {/*
             <div className="notification-icon" onClick={() => setShowNotifications(!showNotifications)}>
               <i className="far fa-bell"></i>
               {unreadCount > 0 && <div className="notification-badge">{unreadCount}</div>}
@@ -635,7 +761,7 @@ function App() {
                 )}
               </div>
             )}
-
+*/}
             {/* User Dropdown */}
             <div className="user-info" onClick={() => setShowUserDropdown(!showUserDropdown)}>
               <div>
@@ -661,12 +787,11 @@ function App() {
                     <i className="fas fa-envelope"></i> {user.email || 'Email'}
                   </div>
                   <div className="user-dropdown-divider"></div>
-                  <div className="user-dropdown-item">
-                    <i className="fas fa-cog"></i> Settings
-                  </div>
-                  <div className="user-dropdown-divider"></div>
-                  <div className="user-dropdown-item">
-                    <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
+                  <div className="user-dropdown-item logout-item">
+                    <button
+                      onClick={handleLogout}
+                      className="logout-btn"
+                    >
                       <i className="fas fa-sign-out-alt"></i> Logout
                     </button>
                   </div>
@@ -755,6 +880,33 @@ function App() {
                         {job.status}
                       </div>
                     </div>
+                    <div className="company-info-section">
+                      <div className="property-location">
+                        <i className="fas fa-map-marker-alt"></i> {job.location} • {job.modality}
+                      </div>
+                      {job.company?.companyDescription && (
+                        <div className="company-description-preview">
+                          <strong>Company Overview:</strong> {job.company.companyDescription.length > 80
+                            ? `${job.company.companyDescription.substring(0, 80)}...`
+                            : job.company.companyDescription}
+                        </div>
+                      )}
+                      {job.company?.companyWebsite && (
+                        <div className="company-website-preview">
+                          <strong>Website: </strong>
+                          <a
+                            href={job.company.companyWebsite}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="company-website-link"
+                          >
+                            {job.company.companyWebsite}
+                          </a>
+                        </div>
+                      )}
+                    </div>
+
+
                     <div className="property-location">
                       <i className="fas fa-map-marker-alt"></i> {job.location} • {job.modality}
                     </div>
@@ -767,10 +919,10 @@ function App() {
                     {/* Applications count */}
                     <div className="applications-count">
                       <i className="fas fa-users"></i>
-                      <strong>{job.applications?.length || 0}</strong> Applications
-                      {job.applications?.length > 0 && (
+                      <strong>{job.applicationCount || job.applications?.length || 0}</strong> Applications
+                      {(job.pendingCount || (job.applications?.filter(app => app.status === 'PENDING').length || 0)) > 0 && (
                         <span className="pending-count">
-                          ({job.applications.filter(app => app.status === 'PENDING').length} pending)
+                          ({job.pendingCount || job.applications?.filter(app => app.status === 'PENDING').length || 0} pending)
                         </span>
                       )}
                     </div>
@@ -867,6 +1019,22 @@ function App() {
               <div className="modal-header">
                 <h2 className="modal-title">
                   {editingJobId ? 'Edit Job Listing' : 'Create New Job Listing'}
+                  {editingJobId && jobs.find(job => job.listingID === editingJobId)?.status === 'approved' && (
+                    <div className="reapproval-warning" style={{
+                      fontSize: '14px',
+                      color: '#ff9800',
+                      fontWeight: 'normal',
+                      marginTop: '5px',
+                      backgroundColor: '#fff8e1',
+                      padding: '8px 12px',
+                      borderRadius: '4px',
+                      borderLeft: '4px solid #ff9800',
+                      marginTop: '10px'
+                    }}>
+                      <i className="fas fa-exclamation-triangle" style={{ marginRight: '8px' }}></i>
+                      <strong>Note:</strong> Editing an approved listing will require coordinator re-approval before students can see it again.
+                    </div>
+                  )}
                 </h2>
                 <button type="button" className="close-modal" onClick={closeModal}>
                   <i className="fas fa-times"></i>
@@ -1011,90 +1179,229 @@ function App() {
                   </div>
                 </div>
 
-                {/* Target Departments & Programs */}
-                <div className="amenities-section">
-                  <h3 className="section-title">Target Departments & Programs</h3>
-                  <div className="selected-courses-preview">
-                    <strong>Selected Courses ({formData.selectedCourses.length}):</strong>
-                    {formData.selectedCourses.length > 0 ? (
-                      <div className="selected-courses-list">
-                        {formData.selectedCourses.map(course => (
-                          <span key={course} className="selected-course-tag">
-                            {course}
-                            <button
-                              type="button"
-                              onClick={() => handleCourseSelection(course)}
-                              className="remove-course-btn"
-                            >
-                              ×
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span style={{ color: '#999', fontStyle: 'italic' }}>No courses selected</span>
-                    )}
-                  </div>
-
-                  {Object.keys(CIT_U_COURSES).map(department => (
-                    <div key={department} className={`amenity-group ${activeDepartmentGroups[department.toLowerCase()] ? 'active' : ''}`}>
-                      <div className="amenity-header" onClick={() => toggleDepartmentGroup(department.toLowerCase())}>
-                        <div className="amenity-title">
-                          <i className={`fas fa-${department === 'CEA' ? 'cogs' :
-                            department === 'CCS' ? 'laptop-code' :
-                              department === 'CASE' ? 'palette' :
-                                department === 'CMBA' ? 'chart-line' :
-                                  department === 'CNAHS' ? 'heartbeat' :
-                                    'shield-alt'
-                            } amenity-icon`}></i>
-                          <span>{department} - {{
+                {/* Department Selection */}
+                <div className="form-section">
+                  <h3 className="section-title">Target Department</h3>
+                  <div className="form-group">
+                    <label className="form-label">Select Department</label>
+                    <select
+                      value={selectedDepartment}
+                      onChange={(e) => {
+                        const dept = e.target.value;
+                        setSelectedDepartment(dept);
+                        setFilteredCourses(dept ? CIT_U_COURSES[dept] || [] : []);
+                        // Clear previously selected courses when department changes
+                        setFormData(prev => ({
+                          ...prev,
+                          selectedCourses: []
+                        }));
+                      }}
+                      className="form-input"
+                      required
+                    >
+                      <option value="">-- Select a Department --</option>
+                      {Object.keys(CIT_U_COURSES).map(dept => (
+                        <option key={dept} value={dept}>
+                          {dept} - {{
                             'CEA': 'College of Engineering and Architecture',
                             'CCS': 'College of Computer Studies',
                             'CASE': 'College of Arts, Sciences, and Education',
                             'CMBA': 'College of Management, Business and Accountancy',
                             'CNAHS': 'College of Nursing and Allied Health Sciences',
                             'CCJ': 'College of Criminal Justice'
-                          }[department]}</span>
-                        </div>
-                        <div className="department-actions">
-                          <button
-                            type="button"
-                            className="select-all-btn"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (isAllCoursesSelected(department)) {
-                                deselectAllCoursesInDepartment(department);
-                              } else {
-                                selectAllCoursesInDepartment(department);
-                              }
-                            }}
-                          >
-                            {isAllCoursesSelected(department) ? 'Deselect All' : 'Select All'}
-                          </button>
-                          <i className={`fas fa-chevron-down amenity-chevron ${activeDepartmentGroups[department.toLowerCase()] ? 'rotated' : ''}`}></i>
-                        </div>
-                      </div>
-                      <div className="amenity-content">
-                        <div className="amenity-grid">
-                          {CIT_U_COURSES[department].map(course => (
-                            <div key={course} className="amenity-item">
-                              <input
-                                type="checkbox"
-                                id={course.replace(/\s+/g, '_')}
-                                checked={formData.selectedCourses.includes(course)}
-                                onChange={() => handleCourseSelection(course)}
-                                className="amenity-checkbox"
-                              />
-                              <label htmlFor={course.replace(/\s+/g, '_')} className="amenity-label">
-                                {course}
-                              </label>
-                            </div>
+                          }[dept]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Courses Selection (only shows when department is selected) */}
+                {selectedDepartment && (
+                  <div className="form-section">
+                    <h3 className="section-title">
+                      Select Programs in {selectedDepartment}
+                      <span style={{ fontSize: '14px', color: '#666', marginLeft: '10px' }}>
+                        (Select one or more)
+                      </span>
+                    </h3>
+
+                    {/* Department info */}
+                    <div className="department-info" style={{
+                      background: '#f8f9fa',
+                      padding: '10px',
+                      borderRadius: '5px',
+                      marginBottom: '15px'
+                    }}>
+                      <strong>Department:</strong> {selectedDepartment} - {
+                        {
+                          'CEA': 'College of Engineering and Architecture',
+                          'CCS': 'College of Computer Studies',
+                          'CASE': 'College of Arts, Sciences, and Education',
+                          'CMBA': 'College of Management, Business and Accountancy',
+                          'CNAHS': 'College of Nursing and Allied Health Sciences',
+                          'CCJ': 'College of Criminal Justice'
+                        }[selectedDepartment]
+                      }
+                    </div>
+
+                    {/* Course Selection Controls */}
+                    <div className="course-selection-controls" style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      marginBottom: '10px'
+                    }}>
+                      <button
+                        type="button"
+                        className="btn-select-all"
+                        onClick={() => {
+                          setFormData(prev => ({
+                            ...prev,
+                            selectedCourses: [...new Set([...prev.selectedCourses, ...filteredCourses])]
+                          }));
+                        }}
+                        style={{
+                          background: '#4CAF50',
+                          color: 'white',
+                          border: 'none',
+                          padding: '5px 10px',
+                          borderRadius: '3px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Select All
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-clear-all"
+                        onClick={() => {
+                          setFormData(prev => ({
+                            ...prev,
+                            selectedCourses: prev.selectedCourses.filter(course =>
+                              !filteredCourses.includes(course)
+                            )
+                          }));
+                        }}
+                        style={{
+                          background: '#f44336',
+                          color: 'white',
+                          border: 'none',
+                          padding: '5px 10px',
+                          borderRadius: '3px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Clear All
+                      </button>
+                    </div>
+
+                    {/* Selected Courses Preview */}
+                    <div className="selected-courses-preview" style={{
+                      background: '#e8f5e8',
+                      padding: '10px',
+                      borderRadius: '5px',
+                      marginBottom: '15px'
+                    }}>
+                      <strong>Selected ({formData.selectedCourses.filter(course =>
+                        filteredCourses.includes(course)
+                      ).length}):</strong>
+                      {formData.selectedCourses.filter(course =>
+                        filteredCourses.includes(course)
+                      ).length > 0 ? (
+                        <div style={{ marginTop: '5px' }}>
+                          {formData.selectedCourses.filter(course =>
+                            filteredCourses.includes(course)
+                          ).map(course => (
+                            <span key={course} style={{
+                              background: '#4CAF50',
+                              color: 'white',
+                              padding: '2px 8px',
+                              borderRadius: '3px',
+                              margin: '2px',
+                              display: 'inline-block',
+                              fontSize: '12px'
+                            }}>
+                              {course}
+                              <button
+                                type="button"
+                                onClick={() => handleCourseSelection(course)}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: 'white',
+                                  marginLeft: '5px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                ×
+                              </button>
+                            </span>
                           ))}
                         </div>
-                      </div>
+                      ) : (
+                        <span style={{ color: '#999', fontStyle: 'italic', marginLeft: '10px' }}>
+                          No courses selected
+                        </span>
+                      )}
                     </div>
-                  ))}
-                </div>
+
+                    {/* Courses Grid */}
+                    <div className="courses-grid" style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+                      gap: '10px',
+                      maxHeight: '300px',
+                      overflowY: 'auto',
+                      padding: '10px',
+                      border: '1px solid #ddd',
+                      borderRadius: '5px'
+                    }}>
+                      {filteredCourses.map(course => (
+                        <div key={course} className="course-item" style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '8px',
+                          background: formData.selectedCourses.includes(course) ? '#e8f5e8' : '#fff',
+                          border: `1px solid ${formData.selectedCourses.includes(course) ? '#4CAF50' : '#ddd'}`,
+                          borderRadius: '4px',
+                          cursor: 'pointer'
+                        }}>
+                          <input
+                            type="checkbox"
+                            id={`course-${course.replace(/\s+/g, '-')}`}
+                            checked={formData.selectedCourses.includes(course)}
+                            onChange={() => handleCourseSelection(course)}
+                            style={{ marginRight: '10px' }}
+                          />
+                          <label
+                            htmlFor={`course-${course.replace(/\s+/g, '-')}`}
+                            style={{
+                              cursor: 'pointer',
+                              flex: 1,
+                              color: formData.selectedCourses.includes(course) ? '#2e7d32' : '#333'
+                            }}
+                          >
+                            {course}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Validation Message */}
+                    {formData.selectedCourses.filter(course =>
+                      filteredCourses.includes(course)
+                    ).length === 0 && selectedDepartment && (
+                        <div style={{
+                          color: '#f44336',
+                          fontSize: '14px',
+                          marginTop: '10px',
+                          fontStyle: 'italic'
+                        }}>
+                          Please select at least one program from this department
+                        </div>
+                      )}
+                  </div>
+                )}
 
                 <div className="modal-footer">
                   <button type="button" className="btn btn-secondary" onClick={closeModal} disabled={loading}>
@@ -1111,9 +1418,10 @@ function App() {
       )}
 
       {/* Applications Modal */}
+      {/* Applications Modal */}
       {showApplicationsModal && selectedJobForApplications && (
         <div className="modal-overlay active">
-          <div className="modal" style={{ maxWidth: '1000px' }}>
+          <div className="modal" style={{ maxWidth: '1200px', width: '90vw' }}>
             <div className="modal-header">
               <h2 className="modal-title">Applications for {selectedJobForApplications.title}</h2>
               <button type="button" className="close-modal" onClick={() => setShowApplicationsModal(false)}>
@@ -1123,53 +1431,76 @@ function App() {
 
             <div className="modal-body">
               <div className="modal-subtitle">
-                Total: {selectedJobApplications.length} applications •
-                Pending: {selectedJobApplications.filter(app => app.status === 'PENDING').length}
+                <span className="count-badge">Total: {selectedJobApplications.length} applications</span>
+                <span className="pending-badge">
+                  Pending: {selectedJobApplications.filter(app => app.status === 'PENDING').length}
+                </span>
               </div>
 
-              <table className="applications-table">
-                <thead>
-                  <tr>
-                    <th>Student Name</th>
-                    <th>Program</th>
-                    <th>Applied Date</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedJobApplications.length > 0 ? (
-                    selectedJobApplications.map(application => (
-                      <tr key={application.applicationID}>
-                        <td>{application.student?.studName || 'N/A'}</td>
-                        <td>{application.student?.course || 'N/A'}</td>
-                        <td>{formatDate(application.applyDate)}</td>
-                        <td>
-                          <span className={`application-status status-${application.status?.toLowerCase()}`}>
-                            {application.status}
-                          </span>
-                        </td>
-                        <td>
-                          <div className="application-actions">
-                            <button
-                              className="btn-review"
-                              onClick={() => viewApplicationDetails(application)}
-                            >
-                              <i className="fas fa-eye"></i> Review
-                            </button>
+              <div className="applications-table-container">
+                <table className="applications-table">
+                  <thead>
+                    <tr>
+                      <th>Student Name</th>
+                      <th>Program</th>
+                      <th>GPA</th>
+                      <th>Applied Date</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedJobApplications.length > 0 ? (
+                      selectedJobApplications.map(application => (
+                        <tr key={application.applicationID}>
+                          <td data-label="Student Name">
+                            {application.student?.studName || 'N/A'}
+                          </td>
+                          <td data-label="Program">
+                            {application.student?.course || 'N/A'}
+                          </td>
+                          <td data-label="GPA">
+                            {application.student?.studGPA ?
+                              application.student.studGPA.toFixed(2) : 'N/A'}
+                          </td>
+                          <td data-label="Applied Date">
+                            {formatDate(application.applyDate)}
+                          </td>
+                          <td data-label="Status">
+                            <span className={`application-status status-${application.status?.toLowerCase()}`}>
+                              {application.status}
+                            </span>
+                          </td>
+                          <td data-label="Actions">
+                            <div className="application-actions">
+                              <button
+                                className="btn-review"
+                                onClick={() => viewApplicationDetails(application)}
+                              >
+                                <i className="fas fa-eye"></i> Review
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr className="empty-state">
+                        <td colSpan="6">
+                          <div style={{ textAlign: 'center', padding: '40px' }}>
+                            <i className="fas fa-inbox" style={{ fontSize: '48px', color: '#d1d5db', marginBottom: '16px' }}></i>
+                            <p style={{ fontSize: '16px', color: '#6b7280', marginBottom: '8px' }}>
+                              No applications yet for this job listing.
+                            </p>
+                            <p style={{ fontSize: '14px', color: '#9ca3af' }}>
+                              When students apply, their applications will appear here.
+                            </p>
                           </div>
                         </td>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan="5" style={{ textAlign: 'center', padding: '40px' }}>
-                        <p>No applications yet for this job listing.</p>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                    )}
+                  </tbody>
+                </table>
+              </div>
 
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowApplicationsModal(false)}>
@@ -1208,6 +1539,11 @@ function App() {
                     {selectedApplication.student?.studYrLevel || 'N/A'}
                   </div>
                   <div className="info-item">
+                    <strong>GPA:</strong><br />
+                    {selectedApplication.student?.studGPA ?
+                      selectedApplication.student.studGPA.toFixed(2) : 'Not specified'}
+                  </div>
+                  <div className="info-item">
                     <strong>Email:</strong><br />
                     {selectedApplication.student?.email || 'N/A'}
                   </div>
@@ -1221,15 +1557,24 @@ function App() {
                 <div className="info-item">
                   <strong>Resume:</strong><br />
                   {selectedApplication.resumeURL ? (
-                    <a href={selectedApplication.resumeURL} target="_blank" rel="noopener noreferrer">
-                      <i className="fas fa-file-pdf"></i> View Resume
+                    <a
+                      href={selectedApplication.resumeURL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="resume-link"
+                    >
+                      <i className="fas fa-file-pdf"></i> {selectedApplication.resumeURL}
                     </a>
                   ) : 'No resume provided'}
                 </div>
 
                 <div className="cover-letter">
                   <strong>Cover Letter:</strong><br />
-                  {selectedApplication.coverLetter || 'No cover letter provided'}
+                  {selectedApplication.coverLetter ? (
+                    <div className="cover-letter-content">
+                      {selectedApplication.coverLetter}
+                    </div>
+                  ) : 'No cover letter provided'}
                 </div>
 
                 <div className="feedback-section">
